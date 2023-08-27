@@ -265,6 +265,51 @@ class ZiplineLoader internal constructor(
     )
   }
 
+  fun loadPreferringCache(
+    applicationName: String,
+    manifestUrlFlow: Flow<String>,
+    serializersModule: SerializersModule = EmptySerializersModule(),
+    initializer: (Zipline) -> Unit = {},
+  ): Flow<LoadResult> {
+    return channelFlow {
+      var isFirstLoad = true
+      var previousManifest: ZiplineManifest? = null
+
+      manifestUrlFlow.collect { manifestUrl ->
+        // Each time a manifest URL is emitted, download and initialize a Zipline for that URL.
+        //  - skip if the manifest hasn't changed from the previous load.
+        //  - pin the application if the load succeeded; unpin if it failed.
+        val now = nowEpochMs()
+
+        if (isFirstLoad) {
+          isFirstLoad = false
+          val loadedFromLocal = loadFromLocal(
+            now,
+            applicationName,
+            serializersModule,
+            initializer,
+          )
+          if (loadedFromLocal != null) {
+            previousManifest = loadedFromLocal
+          }
+        }
+
+
+        val loadedFromNetwork = loadFromNetwork(
+          previousManifest,
+          now,
+          applicationName,
+          manifestUrl,
+          serializersModule,
+          initializer,
+        )
+        if (loadedFromNetwork != null) {
+          previousManifest = loadedFromNetwork
+        }
+      }
+    }
+  }
+
   /**
    * Fetches ZiplineManifest from network, and after a successful fetch, loads Zipline with newly
    * fetched ZiplineManifest.
