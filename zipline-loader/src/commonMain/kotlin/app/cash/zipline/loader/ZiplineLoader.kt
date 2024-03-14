@@ -268,6 +268,7 @@ class ZiplineLoader internal constructor(
   fun loadPreferringCache(
     applicationName: String,
     manifestUrlFlow: Flow<String>,
+    freshnessChecker: FreshnessChecker = DefaultFreshnessCheckerNotFresh,
     serializersModule: SerializersModule = EmptySerializersModule(),
     initializer: (Zipline) -> Unit = {},
   ): Flow<LoadResult> {
@@ -286,6 +287,7 @@ class ZiplineLoader internal constructor(
           val loadedFromLocal = loadFromLocal(
             now,
             applicationName,
+            freshnessChecker,
             serializersModule,
             initializer,
           )
