@@ -50,7 +50,7 @@ kotlin {
   tvosSimulatorArm64()
   tvosX64()
 
-  applyDefaultHierarchyTemplate()
+//  applyDefaultHierarchyTemplate()
 
   sourceSets {
     val commonMain by getting {
@@ -115,15 +115,16 @@ kotlin {
       }
     }
 
-    val nativeMain by getting {
+    val nativeMain by creating {
       dependsOn(hostMain)
     }
-    val nativeTest by getting {
+    val nativeTest by creating {
       dependsOn(hostTest)
     }
 
     targets.withType<KotlinNativeTarget> {
       val main by compilations.getting
+      main.defaultSourceSet.dependsOn(nativeMain)
 
       main.cinterops {
         create("quickjs") {
@@ -137,6 +138,9 @@ kotlin {
       binaries.withType<Framework> {
         linkerOpts += "-lsqlite3"
       }
+
+      val test by compilations.getting
+      test.defaultSourceSet.dependsOn(nativeTest)
     }
 
     targets.withType<KotlinNativeTargetWithTests<*>> {

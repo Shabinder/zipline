@@ -40,7 +40,7 @@ buildscript {
 
 plugins {
   id("com.github.gmazzo.buildconfig") version "3.1.0" apply false
-  id("com.google.devtools.ksp") version libs.versions.ksp apply false
+//  id("com.google.devtools.ksp") version libs.versions.ksp apply false
   alias(libs.plugins.spotless)
 }
 
@@ -108,6 +108,20 @@ tasks.named("dokkaHtmlMultiModule", DokkaMultiModuleTask::class.java).configure 
 }
 
 allprojects {
+  configurations.all {
+    resolutionStrategy {
+      eachDependency {
+        if (requested.group == "org.jetbrains.kotlin") {
+          useVersion("1.9.0")
+        }
+
+        if (requested.name == "kotlinx-serialization-json") {
+          useVersion("1.6.0")
+        }
+      }
+    }
+  }
+
   tasks.withType<DokkaTaskPartial>().configureEach {
     dokkaSourceSets.configureEach {
       documentedVisibilities.set(setOf(
@@ -153,18 +167,6 @@ allprojects {
   plugins.withId("org.jetbrains.kotlin.multiplatform") {
     configure<KotlinMultiplatformExtension> {
       jvmToolchain(11)
-      @Suppress("OPT_IN_USAGE")
-      compilerOptions {
-        freeCompilerArgs.addAll("-opt-in=app.cash.zipline.EngineApi")
-      }
-      // https://youtrack.jetbrains.com/issue/KT-61573
-      targets.configureEach {
-        compilations.configureEach {
-          compilerOptions.configure {
-            freeCompilerArgs.addAll("-Xexpect-actual-classes")
-          }
-        }
-      }
     }
   }
 
@@ -249,17 +251,6 @@ allprojects {
 
   tasks.withType<KotlinJsTest>().configureEach {
     environment("ZIPLINE_ROOT", rootDir.toString())
-  }
-}
-
-// Kotlin 1.9.20 started putting the library version in the klib manifest, but that broke resolution
-// in downstream projects! Hack the klib library version to be 'unspecified', which is what the
-// CInteropProcess task did in prior releases. https://youtrack.jetbrains.com/issue/KT-62515/
-allprojects {
-  tasks.withType<CInteropProcess>().configureEach {
-    val libraryVersionField = CInteropProcess::class.java.getDeclaredField("libraryVersion")
-    libraryVersionField.isAccessible = true
-    libraryVersionField.set(this, "unspecified")
   }
 }
 

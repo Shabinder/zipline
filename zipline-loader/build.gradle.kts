@@ -1,6 +1,7 @@
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
   kotlin("multiplatform")
@@ -8,7 +9,7 @@ plugins {
   kotlin("plugin.serialization")
   id("org.jetbrains.dokka")
   id("com.vanniktech.maven.publish.base")
-  id("app.cash.sqldelight")
+  id("com.squareup.sqldelight")
   id("de.undercouch.download")
   id("binary-compatibility-validator")
 }
@@ -29,8 +30,6 @@ kotlin {
   tvosArm64()
   tvosSimulatorArm64()
   tvosX64()
-
-  applyDefaultHierarchyTemplate()
 
   sourceSets {
     val commonMain by getting {
@@ -61,8 +60,17 @@ kotlin {
         implementation(libs.sqldelight.driver.android)
       }
     }
-    val nativeMain by getting {
+    val nativeMain by creating {
+      dependsOn(commonMain)
       dependencies {
+        implementation(libs.sqldelight.driver.native)
+      }
+    }
+    targets.withType<KotlinNativeTarget> {
+      val main by compilations.getting {
+        defaultSourceSet.dependsOn(nativeMain)
+      }
+      main.dependencies {
         implementation(libs.sqldelight.driver.native)
       }
     }
@@ -97,9 +105,19 @@ kotlin {
       }
     }
 
-    val nativeTest by getting {
+    val nativeTest by creating {
       dependencies {
         implementation(projects.ziplineLoaderTesting)
+      }
+    }
+    targets.withType<KotlinNativeTarget> {
+      val test by compilations.getting
+      test.defaultSourceSet.dependsOn(nativeTest)
+    }
+
+    sourceSets.all {
+      languageSettings {
+        optIn("app.cash.zipline.EngineApi")
       }
     }
   }
@@ -129,10 +147,8 @@ android {
 }
 
 sqldelight {
-  databases {
-    create("Database") {
-      packageName.set("app.cash.zipline.loader.internal.cache")
-    }
+  database("Database") {
+    packageName = "app.cash.zipline.loader.internal.cache"
   }
 }
 

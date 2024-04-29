@@ -51,8 +51,10 @@ import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.IrTypeSystemContextImpl
+import org.jetbrains.kotlin.ir.types.SimpleTypeNullability
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.defaultType
+import org.jetbrains.kotlin.ir.types.impl.IrSimpleTypeImpl
 import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.types.starProjectedType
 import org.jetbrains.kotlin.ir.types.typeWith
@@ -182,6 +184,7 @@ internal class AdapterGenerator(
             putValueArgument(1, irGet(serializersListLocal))
           }
         }
+
         else -> {
           irString((adapterType as IrSimpleType).asString())
         }
@@ -447,15 +450,15 @@ internal class AdapterGenerator(
           putValueArgument(
             0,
             irCall(ziplineApis.listOfFunction).apply {
-            putTypeArgument(0, ziplineApis.kSerializer.starProjectedType)
-            putValueArgument(
-              0,
-              irVararg(
-                ziplineApis.kSerializer.starProjectedType,
-                bridgedFunction.owner.valueParameters.map { irGet(serializers[it.type]!!) },
-              ),
-            )
-          },
+              putTypeArgument(0, ziplineApis.kSerializer.starProjectedType)
+              putValueArgument(
+                0,
+                irVararg(
+                  ziplineApis.kSerializer.starProjectedType,
+                  bridgedFunction.owner.valueParameters.map { irGet(serializers[it.type]!!) },
+                ),
+              )
+            },
           )
           val returnType = bridgedFunction.owner.returnType
           putValueArgument(1, irGet(serializers[returnType]!!))
@@ -472,15 +475,15 @@ internal class AdapterGenerator(
       // )
       +irReturn(
         irCall(ziplineApis.listOfFunction).apply {
-        putTypeArgument(0, ziplineFunctionT)
-        putValueArgument(
-          0,
-          irVararg(
-            ziplineFunctionT,
-            expressions,
-          ),
-        )
-      },
+          putTypeArgument(0, ziplineFunctionT)
+          putValueArgument(
+            0,
+            irVararg(
+              ziplineFunctionT,
+              expressions,
+            ),
+          )
+        },
       )
     }
 
@@ -920,5 +923,13 @@ internal class AdapterGenerator(
   }
 
   private val IrClass.defaultDispatchReceiver
-    get() = typeWith(typeParameters.map { it.defaultType })
+    get() = typeWith(typeParameters.map {
+      // it.defaultType
+      IrSimpleTypeImpl(
+        symbol,
+        SimpleTypeNullability.NOT_SPECIFIED,
+        arguments = emptyList(),
+        annotations = emptyList()
+      )
+    })
 }

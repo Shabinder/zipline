@@ -42,3 +42,9 @@ object DefaultFreshnessCheckerNotFresh : FreshnessChecker {
     return false
   }
 }
+
+object DefaultFreshnessCheckerAlwaysFresh : FreshnessChecker {
+  override fun isFresh(manifest: ZiplineManifest, freshAtEpochMs: Long): Boolean {
+    return true
+  }
+}

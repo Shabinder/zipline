@@ -2,6 +2,7 @@ import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import org.jetbrains.kotlin.gradle.plugin.PLUGIN_CLASSPATH_CONFIGURATION_NAME
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
   kotlin("multiplatform")
@@ -28,8 +29,6 @@ kotlin {
   tvosSimulatorArm64()
   tvosX64()
 
-  applyDefaultHierarchyTemplate()
-
   sourceSets {
     val commonMain by getting {
       dependencies {
@@ -41,12 +40,17 @@ kotlin {
       dependsOn(commonMain)
     }
 
-    val nativeMain by getting {
+    val nativeMain by creating {
       dependsOn(hostMain)
     }
 
     val jvmMain by getting {
       dependsOn(hostMain)
+    }
+
+    targets.withType<KotlinNativeTarget> {
+      val main by compilations.getting
+      main.defaultSourceSet.dependsOn(nativeMain)
     }
   }
 

@@ -1,6 +1,7 @@
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
   kotlin("multiplatform")
@@ -22,11 +23,20 @@ kotlin {
   tvosX64()
 
   sourceSets {
+    all {
+      languageSettings {
+        optIn("app.cash.zipline.EngineApi")
+      }
+    }
+
     val commonMain by getting {
       dependencies {
         api(projects.zipline)
         api(libs.okio.core)
       }
+    }
+    val nativeMain by creating {
+      dependsOn(commonMain)
     }
 
     val commonTest by getting {
@@ -34,6 +44,17 @@ kotlin {
         implementation(libs.assertk)
         implementation(kotlin("test"))
       }
+    }
+    val nativeTest by creating {
+      dependsOn(commonTest)
+    }
+
+    targets.withType<KotlinNativeTarget> {
+      val main by compilations.getting
+      main.defaultSourceSet.dependsOn(nativeMain)
+
+      val test by compilations.getting
+      test.defaultSourceSet.dependsOn(nativeTest)
     }
   }
 }

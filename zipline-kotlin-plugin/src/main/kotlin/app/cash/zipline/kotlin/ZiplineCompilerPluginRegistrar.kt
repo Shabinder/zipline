@@ -26,7 +26,7 @@ import org.jetbrains.kotlin.config.CompilerConfiguration
 @OptIn(ExperimentalCompilerApi::class)
 @AutoService(CompilerPluginRegistrar::class)
 class ZiplineCompilerPluginRegistrar : CompilerPluginRegistrar() {
-  override val supportsK2 get() = true
+  override val supportsK2 get() = false
 
   override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
     val messageCollector = configuration.get(
