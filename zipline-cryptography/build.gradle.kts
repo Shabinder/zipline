@@ -19,7 +19,9 @@ kotlin {
     nodejs()
   }
 
-  linuxX64()
+  if (false) {
+    linuxX64()
+  }
   macosX64()
   macosArm64()
   iosArm64()
