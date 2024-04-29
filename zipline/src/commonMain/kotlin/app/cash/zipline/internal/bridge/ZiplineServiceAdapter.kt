@@ -88,27 +88,7 @@ internal fun serialName(typeName: String, serializers: List<KSerializer<*>>): St
   return buildString {
     append(typeName)
     serializers.joinTo(this, separator = ",", prefix = "<", postfix = ">") {
-      descriptorName(it.descriptor)
-    }
-  }
-}
-
-private fun descriptorName(typeName: SerialDescriptor): String {
-  return buildString {
-    append(typeName.serialName)
-
-    if (typeName.elementsCount > 0) {
-      append('<')
-
-      val elementIndices = 0 until typeName.elementsCount
-      for (i in elementIndices) {
-        append(descriptorName(typeName.getElementDescriptor(i)))
-        if (i < elementIndices.last) {
-          append(',')
-        }
-      }
-
-      append('>')
+      it.descriptor.serialName
     }
   }
 }
