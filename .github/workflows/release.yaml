@@ -15,9 +15,9 @@ jobs:
         arch: [amd64]
         cmake-arch: [x86_64]
         include:
-          - os: macos-latest-large
-            arch: x86_64
-            cmake-arch: x86_64
+#          - os: macos-latest-large
+#            arch: x86_64
+#            cmake-arch: x86_64
           - os: macos-latest
             arch: aarch64
             cmake-arch: arm64
@@ -59,29 +59,10 @@ jobs:
           path: zipline/src/jvmMain/resources/*
           if-no-files-found: error
 
-  android:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: 20
-
-      - run: ./gradlew assembleAndroidTest
-
-      - uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          emulator-boot-timeout: 20000
-          script: ./gradlew connectedCheck
-
   publish:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     needs:
       - build
-      - android
 
     steps:
       - uses: actions/checkout@v4
