@@ -19,9 +19,7 @@ kotlin {
     nodejs()
   }
 
-  if (false) {
-    linuxX64()
-  }
+  linuxX64()
   macosX64()
   macosArm64()
   iosArm64()
@@ -42,18 +40,42 @@ kotlin {
       dependsOn(commonMain)
     }
 
-    val nativeMain by creating {
-      dependsOn(hostMain)
-    }
-
     val jvmMain by getting {
       dependsOn(hostMain)
     }
 
-    targets.withType<KotlinNativeTarget> {
-      val main by compilations.getting
-      main.defaultSourceSet.dependsOn(nativeMain)
+    val nativeMain by creating {
+      dependsOn(hostMain)
     }
+
+    val appleMain by creating {
+      dependsOn(nativeMain)
+    }
+
+    val macosX64Main by getting { dependsOn(appleMain) }
+    val macosArm64Main by getting { dependsOn(appleMain) }
+    val iosArm64Main by getting { dependsOn(appleMain) }
+    val iosX64Main by getting { dependsOn(appleMain) }
+    val iosSimulatorArm64Main by getting { dependsOn(appleMain) }
+    val tvosArm64Main by getting { dependsOn(appleMain) }
+    val tvosSimulatorArm64Main by getting { dependsOn(appleMain) }
+    val tvosX64Main by getting { dependsOn(appleMain) }
+
+    val linuxMain by creating {
+      dependsOn(nativeMain)
+    }
+
+    val linuxX64Main by getting { dependsOn(linuxMain) }
+
+//    targets.withType<KotlinNativeTarget> {
+//      val main by compilations.getting
+//      main.defaultSourceSet.dependsOn(nativeMain)
+//    }
+
+//    targets.withType<KotlinNativeTarget> {
+//      val main by compilations.getting
+//      main.defaultSourceSet.dependsOn(nativeMain)
+//    }
   }
 
   // TODO(jessewilson): move this to a common build module, shared with zipline-testing.
