@@ -923,13 +923,15 @@ internal class AdapterGenerator(
   }
 
   private val IrClass.defaultDispatchReceiver
-    get() = typeWith(typeParameters.map {
+    get() = typeWith(
+      typeParameters.map {
       // it.defaultType
       IrSimpleTypeImpl(
         symbol,
         SimpleTypeNullability.NOT_SPECIFIED,
         arguments = emptyList(),
-        annotations = emptyList()
+        annotations = emptyList(),
       )
-    })
+    },
+    )
 }
