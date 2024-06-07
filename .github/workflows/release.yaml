@@ -1,9 +1,6 @@
 name: release
 
-on:
-  push:
-    tags:
-      - '**'
+on: [workflow_dispatch]
 
 env:
   GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dkotlin.incremental=false"
@@ -99,32 +96,32 @@ jobs:
           path: zipline/src/jvmMain/resources
           merge-multiple: true
 
-      - run: ./gradlew assemble :dokkaHtmlMultiModule
+#      - run: ./gradlew assemble :dokkaHtmlMultiModule
 
       - run: ./gradlew publish
-        if: ${{ github.repository == 'cashapp/zipline' }}
         env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_NEXUS_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_NEXUS_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.ARTIFACT_SIGNING_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.NEXUS_ACTIONS_SONATYPE_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.NEXUS_ACTIONS_SONATYPE_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.NEXUS_ACTIONS_GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.NEXUS_ACTIONS_GPG_PRIVATE_PASSWORD }}
 
-      - uses: ffurrer2/extract-release-notes@v2
-        id: release_notes
+#      - uses: ffurrer2/extract-release-notes@v2
+#        id: release_notes
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          body: ${{ steps.release_notes.outputs.release_notes }}
-          files: |
-            zipline-cli/build/distributions/zipline-cli-*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Deploy docs to website
-        if: ${{ github.repository == 'cashapp/zipline' }}
-        uses: JamesIves/github-pages-deploy-action@releases/v3
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: site
-          FOLDER: build/dokka/htmlMultiModule/
-          TARGET_FOLDER: docs/0.x/
-          CLEAN: true
+#      - uses: softprops/action-gh-release@v2
+#        with:
+#          body: ${{ steps.release_notes.outputs.release_notes }}
+#          files: |
+#            zipline-cli/build/distributions/zipline-cli-*.zip
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#
+#      - name: Deploy docs to website
+#        if: ${{ github.repository == 'cashapp/zipline' }}
+#        uses: JamesIves/github-pages-deploy-action@releases/v3
+#        with:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#          BRANCH: site
+#          FOLDER: build/dokka/htmlMultiModule/
+#          TARGET_FOLDER: docs/0.x/
+#          CLEAN: true

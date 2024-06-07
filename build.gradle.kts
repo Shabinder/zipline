@@ -63,7 +63,7 @@ configure<SpotlessExtension> {
 }
 
 allprojects {
-  group = "app.cash.zipline"
+  group = "io.github.shabinder" //"app.cash.zipline"
   version = project.property("VERSION_NAME") as String
 
   repositories {
@@ -210,12 +210,36 @@ allprojects {
       }
     }
     configure<MavenPublishBaseExtension> {
-      publishToMavenCentral(SonatypeHost.DEFAULT, automaticRelease = true)
+      publishToMavenCentral(SonatypeHost.S01, automaticRelease = true)
       signAllPublications()
+//      pom {
+//        description.set("Runs Kotlin/JS libraries in Kotlin/JVM and Kotlin/Native programs")
+//        name.set(project.name)
+//        url.set("https://github.com/cashapp/zipline/")
+//        licenses {
+//          license {
+//            name.set("The Apache Software License, Version 2.0")
+//            url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+//            distribution.set("repo")
+//          }
+//        }
+//        developers {
+//          developer {
+//            id.set("cashapp")
+//            name.set("Cash App")
+//          }
+//        }
+//        scm {
+//          url.set("https://github.com/cashapp/zipline/")
+//          connection.set("scm:git:https://github.com/cashapp/zipline.git")
+//          developerConnection.set("scm:git:ssh://git@github.com/cashapp/zipline.git")
+//        }
+//      }
       pom {
-        description.set("Runs Kotlin/JS libraries in Kotlin/JVM and Kotlin/Native programs")
-        name.set(project.name)
-        url.set("https://github.com/cashapp/zipline/")
+        name.set("zipline")
+        description.set("Zipline Legacy")
+        url.set("https://github.com/Shabinder/zipline")
+
         licenses {
           license {
             name.set("The Apache Software License, Version 2.0")
@@ -225,14 +249,19 @@ allprojects {
         }
         developers {
           developer {
-            id.set("cashapp")
-            name.set("Cash App")
+            id.set("shabinder")
+            name.set("Shabinder Singh")
+            email.set("dev.shabinder@gmail.com")
           }
         }
         scm {
-          url.set("https://github.com/cashapp/zipline/")
-          connection.set("scm:git:https://github.com/cashapp/zipline.git")
-          developerConnection.set("scm:git:ssh://git@github.com/cashapp/zipline.git")
+          connection.set("scm:git:git://github.com/Shabinder/zipline.git")
+          developerConnection.set("scm:git:ssh://github.com/Shabinder/zipline.git")
+          url.set("https://github.com/Shabinder/zipline/")
+        }
+        issueManagement {
+          system.set("GitHub Issues")
+          url.set("https://github.com/Shabinder/zipline/issues")
         }
       }
     }
