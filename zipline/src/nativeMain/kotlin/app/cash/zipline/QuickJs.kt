@@ -138,7 +138,7 @@ actual class QuickJs private constructor(
           // TODO extract this somewhere common to share with jniMain/
           memoryLimit = -1L
           gcThreshold = 256L * 1024L
-          maxStackSize = 512L * 1024L // Override the QuickJS default which is 256 KiB
+          maxStackSize = 0L //512L * 1024L // Override the QuickJS default which is 256 KiB
           installFinalizationRegistry(context, contextForCompiling)
         }
     }
