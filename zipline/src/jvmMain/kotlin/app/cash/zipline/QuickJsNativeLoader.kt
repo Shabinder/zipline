@@ -19,21 +19,40 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
-import java.util.Locale.US
 
 @Suppress("UnsafeDynamicallyLoadedCode") // Only loading from our own JAR contents.
 internal actual fun loadNativeLibrary() {
-  val osName = System.getProperty("os.name").lowercase(US)
-  val osArch = System.getProperty("os.arch").lowercase(US)
+  val osName = System.getProperty("os.name")
+  val osArch = System.getProperty("os.arch")
+
+  val targetOs = when {
+    osName.equals("Mac OS X", ignoreCase = true) -> "macos"
+    osName.startsWith("Linux", ignoreCase = true) -> "linux"
+    osName.startsWith("Win", ignoreCase = true) -> "windows"
+    else -> error("Unsupported OS: $osName")
+  }
+
+  val targetArch = when (osArch) {
+    "x86_64", "amd64" -> "x64"
+    "aarch64", "arm64" -> "arm64"
+    else -> error("Unsupported arch: $osArch")
+  }
+
+  val extension = when {
+    osName.startsWith("Win", true) -> "dll"
+    osName.startsWith("Mac") -> "dylib"
+    else -> "so"
+  }
+
   val nativeLibraryJarPath = if (osName.contains("linux")) {
-    "/jni/$osArch/libquickjs.so"
+    "/jni/$targetOs/$targetArch/$osArch/libquickjs.$extension"
   } else if (osName.contains("mac")) {
-    "/jni/$osArch/libquickjs.dylib"
+    "/jni/$targetOs/$targetArch/libquickjs.$extension"
   } else {
-    throw IllegalStateException("Unsupported OS: $osName")
+    throw IllegalStateException("Unsupported OS: $osName ($osArch)")
   }
   val nativeLibraryUrl = QuickJs::class.java.getResource(nativeLibraryJarPath)
-      ?: throw IllegalStateException("Unable to read $nativeLibraryJarPath from JAR")
+    ?: throw IllegalStateException("Unable to read $nativeLibraryJarPath from JAR")
   val nativeLibraryFile: Path
   try {
     nativeLibraryFile = Files.createTempFile("quickjs", null)
