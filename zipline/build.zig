@@ -68,8 +68,8 @@ fn commonQuickJsSetup(b: *std.Build, quickjs: *std.Build.Step.Compile, version: 
     }
 
     quickjs.linkLibC();
-    const quickjsCFiles = try listFilesWithExtension(".c", al, "native/quickjs/");
-    const commonCFiles = try listFilesWithExtension(".c", al, "native/common/");
+    const quickjsCFiles = try listFilesWithExtension(".c", al, "native/quickjs/", false);
+    const commonCFiles = try listFilesWithExtension(".c", al, "native/common/", false);
     quickjs.addCSourceFiles(.{ .files = quickjsCFiles, .flags = &.{
         "-std=gnu99",
     } });
@@ -78,13 +78,13 @@ fn commonQuickJsSetup(b: *std.Build, quickjs: *std.Build.Step.Compile, version: 
     } });
 
     quickjs.linkLibCpp();
-    quickjs.addCSourceFiles(.{ .files = try listFilesWithExtension(".cpp", al, "native/"), .flags = &.{
+    quickjs.addCSourceFiles(.{ .files = try listFilesWithExtension(".cpp", al, "native/", false), .flags = &.{
         "-std=c++11",
     } });
 
     if (quickjs.rootModuleTarget().os.tag == .windows) {
         // Add native/winpthreads.
-        const winpthreadsCFiles = try listFilesWithExtension(".c", al, "native/winpthreads/src/");
+        const winpthreadsCFiles = try listFilesWithExtension(".c", al, "native/winpthreads/src/", true);
         quickjs.addCSourceFiles(.{ .files = winpthreadsCFiles, .flags = &.{
             "-std=gnu99",
         } });
@@ -134,7 +134,7 @@ fn getOutputDir(target: std.Target.Query, allocator: std.mem.Allocator) ![]const
     return allocator.dupe(u8, outputDir);
 }
 
-fn listFilesWithExtension(ext: []const u8, allocator: std.mem.Allocator, dir_path: []const u8) ![]const []const u8 {
+fn listFilesWithExtension(ext: []const u8, allocator: std.mem.Allocator, dir_path: []const u8, recursive: bool) ![]const []const u8 {
     var dir = try std.fs.cwd().openDir(dir_path, .{});
     defer dir.close();
 
@@ -146,12 +146,14 @@ fn listFilesWithExtension(ext: []const u8, allocator: std.mem.Allocator, dir_pat
         const full_path = try std.fs.path.join(allocator, &[_][]const u8{ dir_path, entry.name });
 
         if (entry.kind == .directory) {
-            // Recursively collect files in subdirectories
-            const subfiles = try listFilesWithExtension(ext, allocator, full_path);
-            defer allocator.free(subfiles);
+            if (recursive) {
+                // Recursively collect files in subdirectories (if enabled)
+                const subfiles = try listFilesWithExtension(ext, allocator, full_path, recursive);
+                defer allocator.free(subfiles);
 
-            for (subfiles) |subfile| {
-                try files.append(subfile);
+                for (subfiles) |subfile| {
+                    try files.append(subfile);
+                }
             }
             allocator.free(full_path);
         } else if (entry.kind == .file) {
