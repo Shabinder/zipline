@@ -20,6 +20,10 @@ jacoco.exec
 xcuserdata
 Pods
 
+# Zig
+zig-cache
+zig-out
+
 # Release
 docs/0.x
 
