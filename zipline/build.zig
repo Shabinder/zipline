@@ -11,8 +11,6 @@ const targets: []const std.Target.Query = &.{
 };
 
 pub fn build(b: *std.Build) !void {
-    const mode = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSafe });
-
     const al = std.heap.page_allocator;
 
     var version_buf: [128]u8 = undefined;
@@ -23,7 +21,7 @@ pub fn build(b: *std.Build) !void {
             .name = "quickjs",
             .version = null,
             .target = b.resolveTargetQuery(target),
-            .optimize = mode,
+            .optimize = .ReleaseSmall,
             .pic = true, // Platform-independent code (i.e., relative jumps) to be safe.
         });
 
