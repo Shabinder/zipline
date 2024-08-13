@@ -37,6 +37,9 @@ jobs:
 
       - name: Build native libraries
         run: |
+          if [[ "$(uname)" == "Darwin" ]]; then
+            ln -s /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libSystem.B.tbd /opt/homebrew/Cellar/zig/0.13.0/lib/zig/libc/darwin/libSystem.tbd
+          fi
           cd zipline
           zig build
 
@@ -97,6 +100,9 @@ jobs:
 
       - name: Build native libraries
         run: |
+          if [[ "$(uname)" == "Darwin" ]]; then
+            ln -s /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libSystem.B.tbd /opt/homebrew/Cellar/zig/0.13.0/lib/zig/libc/darwin/libSystem.tbd
+          fi
           cd zipline
           zig build
 

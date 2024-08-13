@@ -133,7 +133,7 @@ fn getOutputDir(target: std.Target.Query, allocator: std.mem.Allocator) ![]const
 }
 
 fn listFilesWithExtension(ext: []const u8, allocator: std.mem.Allocator, dir_path: []const u8, recursive: bool) ![]const []const u8 {
-    var dir = try std.fs.cwd().openDir(dir_path, .{});
+    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
     defer dir.close();
 
     var files = std.ArrayList([]const u8).init(allocator);
