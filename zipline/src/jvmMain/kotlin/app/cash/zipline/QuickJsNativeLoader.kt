@@ -39,13 +39,13 @@ internal actual fun loadNativeLibrary() {
     else -> throw IllegalStateException("Unsupported Arch: $osName ($osArch)")
   }
 
-  val extension = when {
-    osName.startsWith("mac") -> "dylib"
-    osName.startsWith("win") -> "dll"
-    else -> "so"
+  val file = when {
+    osName.startsWith("mac") -> "libquickjs.dylib"
+    osName.startsWith("win") -> "quickjs.dll"
+    else -> "libquickjs.so"
   }
 
-  val nativeLibraryJarPath = "/jni/$targetOs/$targetArch/libquickjs.$extension"
+  val nativeLibraryJarPath = "/jni/$targetOs/$targetArch/$file"
   val nativeLibraryUrl = QuickJs::class.java.getResource(nativeLibraryJarPath)
     ?: throw IllegalStateException("Unable to read $nativeLibraryJarPath from JAR")
   val nativeLibraryFile: Path
