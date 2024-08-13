@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
 
 plugins {
   kotlin("multiplatform")
-  id("app.cash.zipline")
+  id("in.shabinder.zipline")
 }
 
 kotlin {

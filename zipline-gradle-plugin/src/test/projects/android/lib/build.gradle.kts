@@ -1,7 +1,7 @@
 plugins {
   kotlin("multiplatform")
   id("com.android.library")
-  id("app.cash.zipline")
+  id("in.shabinder.zipline")
 }
 
 kotlin {

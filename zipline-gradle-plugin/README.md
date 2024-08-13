@@ -33,7 +33,7 @@ The Gradle plugin has a Download task that downloads the latest Zipline compiled
 
 ```kotlin
 plugins {
-  id("app.cash.zipline")
+  id("in.shabinder.zipline")
 }
 
 kotlin {

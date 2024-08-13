@@ -194,7 +194,7 @@ cklib {
 }
 
 android {
-  namespace = "app.cash.zipline"
+  namespace = "in.shabinder.zipline"
   compileSdk = libs.versions.compileSdk.get().toInt()
 
   defaultConfig {

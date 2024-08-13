@@ -2,7 +2,7 @@ import app.cash.zipline.gradle.ZiplineCompileTask
 
 plugins {
   kotlin("multiplatform")
-  id("app.cash.zipline")
+  id("in.shabinder.zipline")
 }
 
 kotlin {

@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
 plugins {
   kotlin("multiplatform")
   kotlin("plugin.serialization")
-  id("app.cash.zipline")
+  id("in.shabinder.zipline")
 }
 
 kotlin {

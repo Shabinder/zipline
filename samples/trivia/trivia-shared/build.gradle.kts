@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin
 import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
 
-apply(plugin = "app.cash.zipline")
+apply(plugin = "in.shabinder.zipline")
 
 plugins {
   kotlin("multiplatform")

@@ -92,7 +92,7 @@ jobs:
     needs:
       - jvm-test
       - android-test
-    if: ${{ (github.ref == 'refs/heads/trunk' || startsWith(github.ref, 'refs/tags/')) && github.repository == 'cashapp/zipline' }}
+    if: ${{ (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/'))}}
 
     steps:
       - uses: actions/checkout@v4
