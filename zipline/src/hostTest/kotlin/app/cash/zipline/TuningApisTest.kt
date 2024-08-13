@@ -31,7 +31,7 @@ class TuningApisTest {
     // TODO remove this test once jniMain and nativeMain share initial value config in hostMain.
     assertEquals(-1, quickjs.memoryLimit)
     assertEquals(256L * 1024L, quickjs.gcThreshold)
-    assertEquals(512L * 1024L, quickjs.maxStackSize)
+    assertEquals(0L, quickjs.maxStackSize)
   }
 
   @Test fun setMemoryLimit() {
