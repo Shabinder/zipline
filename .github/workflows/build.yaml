@@ -92,6 +92,7 @@ jobs:
     needs:
       - jvm-test
       - android-test
+    if: ${{ (github.ref == 'refs/heads/trunk' || startsWith(github.ref, 'refs/tags/')) && github.repository == 'cashapp/zipline' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -100,17 +101,9 @@ jobs:
           distribution: 'zulu'
           java-version: 21
 
-      - run: brew install zig
-        if: matrix.os == 'macos-latest'
-      - run: sudo snap install zig --classic --beta
-        if: matrix.os == 'ubuntu-latest'
-
       - name: Build native libraries
         run: |
-          if [[ "$(uname)" == "Darwin" ]]; then
-            xcodebuild -version
-            ln -s /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libSystem.B.tbd /opt/homebrew/Cellar/zig/0.13.0/lib/zig/libc/darwin/libSystem.tbd
-          fi
+          sudo snap install zig --classic --beta
           cd zipline
           zig build
           cd ..
@@ -130,7 +123,6 @@ jobs:
           if-no-files-found: error
 
       - run: ./gradlew publish
-        if: ${{ (github.ref == 'refs/heads/trunk' || startsWith(github.ref, 'refs/tags/')) && github.repository == 'cashapp/zipline' }}
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_NEXUS_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_NEXUS_PASSWORD }}
