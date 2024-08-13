@@ -55,7 +55,7 @@ buildConfig {
 gradlePlugin {
   plugins {
     create("zipline") {
-      id = "in.shabinder.zipline"
+      id = "io.github.shabinder"
       displayName = "zipline"
       description = "Compiler plugin to generate bridges between platforms"
       implementationClass = "app.cash.zipline.gradle.ZiplinePlugin"

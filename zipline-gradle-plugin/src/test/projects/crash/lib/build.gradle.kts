@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
 
 plugins {
   kotlin("multiplatform")
-  id("in.shabinder.zipline")
+  id("io.github.shabinder")
 }
 
 kotlin {

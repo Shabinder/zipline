@@ -1,7 +1,7 @@
 plugins {
   kotlin("multiplatform")
   id("com.android.library")
-  id("in.shabinder.zipline")
+  id("io.github.shabinder")
 }
 
 kotlin {

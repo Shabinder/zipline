@@ -62,7 +62,7 @@ configure<SpotlessExtension> {
 }
 
 allprojects {
-  group = "in.shabinder.zipline"
+  group = "io.github.shabinder"
   version = project.property("VERSION_NAME") as String
 
   repositories {
@@ -207,12 +207,12 @@ allprojects {
       }
     }
     configure<MavenPublishBaseExtension> {
-      publishToMavenCentral(SonatypeHost.DEFAULT, automaticRelease = true)
+      publishToMavenCentral(SonatypeHost.S01, automaticRelease = true)
       signAllPublications()
       pom {
         description.set("Runs Kotlin/JS libraries in Kotlin/JVM and Kotlin/Native programs")
         name.set(project.name)
-        url.set("https://github.com/cashapp/zipline/")
+        url.set("https://github.com/Shabinder/zipline/")
         licenses {
           license {
             name.set("The Apache Software License, Version 2.0")
@@ -222,14 +222,14 @@ allprojects {
         }
         developers {
           developer {
-            id.set("cashapp")
-            name.set("Cash App")
+            id.set("Shabinder")
+            name.set("Soundbound App")
           }
         }
         scm {
-          url.set("https://github.com/cashapp/zipline/")
-          connection.set("scm:git:https://github.com/cashapp/zipline.git")
-          developerConnection.set("scm:git:ssh://git@github.com/cashapp/zipline.git")
+          url.set("https://github.com/Shabinder/zipline/")
+          connection.set("scm:git:https://github.com/Shabinder/zipline.git")
+          developerConnection.set("scm:git:ssh://git@github.com/Shabinder/zipline.git")
         }
       }
     }

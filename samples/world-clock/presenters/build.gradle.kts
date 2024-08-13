@@ -5,7 +5,7 @@ plugins {
   kotlin("multiplatform")
   id("com.android.library")
   kotlin("plugin.serialization")
-  id("in.shabinder.zipline")
+  id("io.github.shabinder")
 }
 
 kotlin {

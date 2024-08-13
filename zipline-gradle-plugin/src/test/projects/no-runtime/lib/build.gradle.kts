@@ -19,7 +19,7 @@ import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
 
 plugins {
   kotlin("jvm")
-  id("in.shabinder.zipline")
+  id("io.github.shabinder")
   application
 }
 
