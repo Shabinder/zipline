@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 20
+          java-version: 21
 
       - run: brew install zig
         if: matrix.os == 'macos-latest'
@@ -43,6 +43,7 @@ jobs:
           fi
           cd zipline
           zig build
+          cd ..
 
       - run: ./gradlew build --stacktrace
 
@@ -54,7 +55,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 20
+          java-version: 21
 
       - name: Enable KVM
         run: |
@@ -78,7 +79,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 20
+          java-version: 21
 
       - name: Build Xcode samples
         run: |
@@ -97,7 +98,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 20
+          java-version: 21
 
       - run: brew install zig
         if: matrix.os == 'macos-latest'
@@ -112,6 +113,7 @@ jobs:
           fi
           cd zipline
           zig build
+          cd ..
 
       - run: ./gradlew assemble dokkaHtmlMultiModule
 
