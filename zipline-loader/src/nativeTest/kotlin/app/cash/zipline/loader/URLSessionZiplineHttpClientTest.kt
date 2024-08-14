@@ -21,13 +21,12 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import okio.IOException
-import platform.Foundation.NSURLSession
 
 /**
  * This tests our Kotlin/Native URLSessionZiplineHttpClient. Unfortunately this test is not enabled
  * by default as we don't have an equivalent to MockWebServer for Kotlin/Native.
  */
-class URLSessionZiplineHttpClientTest {
+/*class URLSessionZiplineHttpClientTest {
   var enabled = false
 
   @Test
@@ -79,4 +78,4 @@ class URLSessionZiplineHttpClientTest {
       exception.message,
     )
   }
-}
+}*/

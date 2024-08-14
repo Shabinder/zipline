@@ -27,9 +27,3 @@ internal actual val ecdsaP256: SignatureAlgorithm = EcdsaP256(secureRandom())
 internal fun secureRandom(): SecureRandom {
   return SecureRandom().also { it.nextLong() } // Force seeding.
 }
-
-internal actual val systemEpochMsClock: () -> Long = System::currentTimeMillis
-
-internal actual fun resolveUrl(baseUrl: String, link: String): String {
-  return baseUrl.toHttpUrl().resolve(link)!!.toString()
-}

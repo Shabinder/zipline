@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package app.cash.zipline.loader
+/*
 
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -93,7 +94,9 @@ private class CompletionHandler(
   }
 }
 
-/** Freeze this when executing on Kotlin/Native's strict memory model. */
+*/
+/** Freeze this when executing on Kotlin/Native's strict memory model. *//*
+
 @OptIn(ExperimentalNativeApi::class)
 private fun <T> T.maybeFreeze(): T {
   return if (Platform.memoryModel == MemoryModel.STRICT) {
@@ -102,3 +105,4 @@ private fun <T> T.maybeFreeze(): T {
     this
   }
 }
+*/

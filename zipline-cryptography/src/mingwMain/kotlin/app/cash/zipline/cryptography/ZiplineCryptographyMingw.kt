@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Block, Inc.
+ * Copyright (C) 2024 Cash App
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,14 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package app.cash.zipline.loader.internal
+package app.cash.zipline.cryptography
 
 import app.cash.zipline.Zipline
-import io.ktor.http.URLBuilder
-import io.ktor.http.takeFrom
 
-internal actual fun Zipline.multiplatformLoadJsModule(bytecode: ByteArray, id: String) =
-  loadJsModule(bytecode, id)
-
-internal actual val ecdsaP256: SignatureAlgorithm = EcdsaP256()
-
+actual fun Zipline.installCryptographyService() {
+  installCryptographyServiceInternal(RealZiplineCryptographyService())
+}

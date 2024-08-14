@@ -17,9 +17,9 @@ kotlin {
   androidTarget {
     publishAllLibraryVariants()
   }
-  if (false) {
-    linuxX64()
-  }
+
+  linuxX64()
+  mingwX64()
   macosX64()
   macosArm64()
   iosArm64()
@@ -39,6 +39,8 @@ kotlin {
         api(libs.okio.core)
         api(libs.sqldelight.runtime)
         implementation(libs.kotlinx.serialization.json)
+        implementation(libs.kotlinx.datetime)
+        implementation(libs.ktor.client.core)
       }
     }
     val jniMain by creating {

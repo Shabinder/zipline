@@ -18,34 +18,7 @@
 package app.cash.zipline.loader.internal
 
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.alloc
-import kotlinx.cinterop.convert
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.pin
-import kotlinx.cinterop.ptr
-import kotlinx.cinterop.value
 import okio.ByteString
-import platform.CoreFoundation.CFDataRef
-import platform.CoreFoundation.CFDictionaryAddValue
-import platform.CoreFoundation.CFDictionaryCreateMutable
-import platform.CoreFoundation.CFErrorGetCode
-import platform.CoreFoundation.CFErrorRefVar
-import platform.CoreFoundation.kCFAllocatorDefault
-import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
-import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
-import platform.Foundation.CFBridgingRelease
-import platform.Foundation.CFBridgingRetain
-import platform.Foundation.NSData
-import platform.Foundation.dataWithBytesNoCopy
-import platform.Security.SecKeyCreateWithData
-import platform.Security.SecKeyVerifySignature
-import platform.Security.errSecVerifyFailed
-import platform.Security.kSecAttrKeyClass
-import platform.Security.kSecAttrKeyClassPublic
-import platform.Security.kSecAttrKeyType
-import platform.Security.kSecAttrKeyTypeECSECPrimeRandom
-import platform.Security.kSecKeyAlgorithmECDSASignatureDigestX962SHA256
 
 /** Note that we only implement [verify] on iOS because that's all we need (currently). */
 internal class EcdsaP256 : SignatureAlgorithm {
@@ -54,7 +27,8 @@ internal class EcdsaP256 : SignatureAlgorithm {
   }
 
   override fun verify(message: ByteString, signature: ByteString, publicKey: ByteString): Boolean {
-    val attributes = CFDictionaryCreateMutable(
+    error("signing is not implemented on iOS")
+    /*val attributes = CFDictionaryCreateMutable(
       allocator = kCFAllocatorDefault,
       capacity = 0,
       keyCallBacks = kCFTypeDictionaryKeyCallBacks.ptr,
@@ -128,6 +102,6 @@ internal class EcdsaP256 : SignatureAlgorithm {
     } finally {
       CFBridgingRelease(typeRef)
       pin.unpin()
-    }
+    }*/
   }
 }

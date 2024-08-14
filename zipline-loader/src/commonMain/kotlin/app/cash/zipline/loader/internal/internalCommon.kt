@@ -18,6 +18,10 @@ package app.cash.zipline.loader.internal
 import app.cash.zipline.Zipline
 import app.cash.zipline.loader.SignatureAlgorithmId
 import app.cash.zipline.loader.internal.tink.subtle.Ed25519
+import io.ktor.http.URLBuilder
+import io.ktor.http.takeFrom
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 
 // TODO: drop this once we adopt Kotlin Hierarchical Multiplatform projects
 internal expect fun Zipline.multiplatformLoadJsModule(bytecode: ByteArray, id: String)
@@ -37,7 +41,11 @@ internal fun SignatureAlgorithmId.get(): SignatureAlgorithm {
   }
 }
 
-internal expect val systemEpochMsClock: () -> Long
+internal val systemEpochMsClock: () -> Long = {
+  Clock.System.now().toEpochMilliseconds()
+}
 
 /** Returns the URL of [link] relative to [baseUrl]. */
-internal expect fun resolveUrl(baseUrl: String, link: String): String
+internal fun resolveUrl(baseUrl: String, link: String): String {
+  return URLBuilder(baseUrl).takeFrom(link).build().toString()
+}
