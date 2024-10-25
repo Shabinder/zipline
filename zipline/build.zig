@@ -38,6 +38,7 @@ fn commonQuickJsSetup(b: *std.Build, quickjs: *std.Build.Step.Compile, version: 
     var quoted_version_buf: [12]u8 = undefined;
     const quoted_version = try std.fmt.bufPrint(&quoted_version_buf, "\"{s}\"", .{version});
     quickjs.defineCMacro("CONFIG_VERSION", quoted_version);
+    // quickjs.defineCMacro("CONFIG_BIGNUM", "y");
 
     // Add the JDK's include/ headers.
     const java_home = try std.process.getEnvVarOwned(al, "JAVA_HOME");
@@ -81,6 +82,8 @@ fn commonQuickJsSetup(b: *std.Build, quickjs: *std.Build.Step.Compile, version: 
     } });
 
     if (quickjs.rootModuleTarget().os.tag == .windows) {
+        quickjs.defineCMacro("CONFIG_WIN32", "y");
+
         // Add native/winpthreads.
         const winpthreadsCFiles = try listFilesWithExtension(".c", al, "native/winpthreads/src/", true);
         quickjs.addCSourceFiles(.{ .files = winpthreadsCFiles, .flags = &.{

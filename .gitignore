@@ -20,6 +20,8 @@ jacoco.exec
 xcuserdata
 Pods
 
+**/bin/**
+
 # Zig
 zig-cache
 zig-out

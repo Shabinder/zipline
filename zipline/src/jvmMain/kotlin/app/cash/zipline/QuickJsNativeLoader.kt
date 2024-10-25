@@ -41,7 +41,7 @@ internal actual fun loadNativeLibrary() {
 
   val file = when {
     osName.startsWith("mac") -> "libquickjs.dylib"
-    osName.startsWith("win") -> "quickjs.dll"
+    osName.startsWith("win") -> "libquickjs.dll"
     else -> "libquickjs.so"
   }
 

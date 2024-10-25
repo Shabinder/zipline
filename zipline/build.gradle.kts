@@ -95,6 +95,11 @@ kotlin {
     }
     val jniTest by creating {
       dependsOn(hostTest)
+
+      dependencies {
+        implementation(libs.assertk)
+        implementation(libs.junit)
+      }
     }
 
     val androidMain by getting {
@@ -177,7 +182,17 @@ cklib {
   config.kotlinVersion = libs.versions.kotlin.get()
   create("quickjs") {
     language = C
-    srcDirs = project.files(file("native/quickjs"), file("native/common"))
+
+    srcDirs = project.files(
+      file("native/quickjs/cutils.c"),
+      file("native/quickjs/libbf.c"),
+      file("native/quickjs/libregexp.c"),
+      file("native/quickjs/libunicode.c"),
+      file("native/quickjs/quickjs.c"),
+      file("native/common"),
+    )
+
+//    srcDirs = project.files(file("native/quickjs"), file("native/common"))
     compilerArgs.addAll(
       listOf(
         //"-DDUMP_LEAKS=1", // For local testing ONLY!

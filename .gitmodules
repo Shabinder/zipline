@@ -1,0 +1,3 @@
+[submodule "zipline/native/quickjs"]
+	path = zipline/native/quickjs
+	url = https://github.com/bellard/quickjs
