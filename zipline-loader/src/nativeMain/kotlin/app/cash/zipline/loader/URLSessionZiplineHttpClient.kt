@@ -18,8 +18,6 @@ package app.cash.zipline.loader
 
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.experimental.ExperimentalNativeApi
-import kotlin.native.concurrent.freeze
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okio.ByteString
@@ -38,10 +36,6 @@ import platform.Foundation.dataTaskWithRequest
 internal class URLSessionZiplineHttpClient(
   private val urlSession: NSURLSession,
 ) : ZiplineHttpClient() {
-  init {
-    maybeFreeze()
-  }
-
   override suspend fun download(
     url: String,
     requestHeaders: List<Pair<String, String>>,
@@ -56,7 +50,7 @@ internal class URLSessionZiplineHttpClient(
             addValue(value = value, forHTTPHeaderField = name)
           }
         },
-        completionHandler = completionHandler::invoke.maybeFreeze(),
+        completionHandler = completionHandler::invoke,
       )
 
       continuation.invokeOnCancellation {
@@ -93,16 +87,3 @@ private class CompletionHandler(
     continuation.resume(data.toByteString())
   }
 }
-
-*/
-/** Freeze this when executing on Kotlin/Native's strict memory model. *//*
-
-@OptIn(ExperimentalNativeApi::class)
-private fun <T> T.maybeFreeze(): T {
-  return if (Platform.memoryModel == MemoryModel.STRICT) {
-    this.freeze()
-  } else {
-    this
-  }
-}
-*/
