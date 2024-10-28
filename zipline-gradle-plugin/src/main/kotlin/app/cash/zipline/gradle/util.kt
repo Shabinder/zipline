@@ -40,6 +40,6 @@ internal fun Project.ziplineDependency(artifactId: String): Any {
 
   return when {
     isInternalBuild -> project(":$artifactId")
-    else -> "app.cash.zipline:$artifactId:$ziplineVersion"
+    else -> "io.github.shabinder:$artifactId:$ziplineVersion"
   }
 }

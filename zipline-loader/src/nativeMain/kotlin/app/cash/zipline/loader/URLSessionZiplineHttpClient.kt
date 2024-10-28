@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 package app.cash.zipline.loader
-/*
 
+/*
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellableContinuation
@@ -86,4 +86,4 @@ private class CompletionHandler(
 
     continuation.resume(data.toByteString())
   }
-}
+}*/
