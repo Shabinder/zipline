@@ -145,6 +145,7 @@ class ZiplineCompilerTest {
     val mainFunction = "zipline.ziplineMain"
     ZiplineCompiler(
       outputDir = outputDir,
+      nodeModulesDir = null, // TODO add node_modules test case
       mainFunction = mainFunction,
       mainModuleId = mainModuleId,
       manifestSigner = null,

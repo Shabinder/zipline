@@ -33,6 +33,7 @@ import org.jetbrains.kotlin.gradle.targets.js.ir.JsIrBinary
 import org.jetbrains.kotlin.gradle.targets.js.ir.KotlinJsIrTarget
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.targets.js.npm.tasks.KotlinNpmInstallTask
 import org.slf4j.LoggerFactory
 
 @Suppress("unused") // Created reflectively by Gradle.
@@ -125,6 +126,11 @@ class ZiplinePlugin : KotlinCompilerPluginSupportPlugin {
     extension: ZiplineExtension,
     cliConfiguration: Configuration,
   ): TaskProvider<ZiplineCompileTask> {
+    // TODO is this the best way to get the node_modules directory?
+    val npmInstallTask = project.rootProject.tasks.withType(KotlinNpmInstallTask::class.java).single()
+    // TODO be configured in the task.
+    // createdTask.nodeModuleDir.fileValue(npmInstallTask.nodeModulesDir)
+
     val target = (if (jsProductionTask.targetName == "js") "" else jsProductionTask.targetName)
     val mode = jsProductionTask.mode.name
     val toolName = jsProductionTask.toolName ?: ""

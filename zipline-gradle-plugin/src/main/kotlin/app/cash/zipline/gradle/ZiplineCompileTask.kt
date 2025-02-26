@@ -57,6 +57,10 @@ abstract class ZiplineCompileTask @Inject constructor(
   abstract val outputDir: DirectoryProperty
 
   @get:Optional
+  @get:InputDirectory
+  abstract val nodeModuleDir: DirectoryProperty
+
+  @get:Optional
   @get:Input
   abstract val mainModuleId: Property<String>
 
@@ -122,6 +126,8 @@ abstract class ZiplineCompileTask @Inject constructor(
 
   @TaskAction
   fun task(inputChanges: InputChanges) {
+    val nodeModuleDirFile = nodeModuleDir.orNull?.asFile
+
     val args = buildList {
       add("compile")
       add("--input")
@@ -175,6 +181,7 @@ abstract class ZiplineCompileTask @Inject constructor(
       }
     }
 
+    // Todo: Add node module to args
     execOperations.javaexec { exec ->
       exec.classpath = classpath
       exec.mainClass.set("app.cash.zipline.cli.Main")

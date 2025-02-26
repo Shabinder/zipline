@@ -21,6 +21,7 @@ import app.cash.zipline.bytecode.SourceMap
 import app.cash.zipline.bytecode.applySourceMapToBytecode
 import app.cash.zipline.bytecode.clean
 import app.cash.zipline.bytecode.stripLineNumbers
+import app.cash.zipline.gradle.internal.NpmPackage
 import app.cash.zipline.loader.CURRENT_ZIPLINE_VERSION
 import app.cash.zipline.loader.ManifestSigner
 import app.cash.zipline.loader.ZiplineFile
@@ -49,11 +50,17 @@ internal class ZiplineCompiler(
     private const val ZIPLINE_EXTENSION = ".zipline"
   }
 
+  private val npmPackageJson = Json { ignoreUnknownKeys = true }
+
   fun compile(
     inputDir: File,
-  ) {
+    nodeModulesDir: File?,
+    ) {
     val jsFiles = getJsFiles(inputDir.listFiles()!!.asList())
-    val modules = compileFilesInParallel(jsFiles)
+    var modules = compileFilesInParallel(jsFiles)
+    if (nodeModulesDir != null) {
+      modules = compileNodeModules(modules, nodeModulesDir, outputDir)
+    }
     writeManifest(
       modules = modules,
     )
@@ -64,6 +71,7 @@ internal class ZiplineCompiler(
     addedFiles: List<File>,
     removedFiles: List<File>,
   ) {
+    // TODO support node_modules resolution
     val modifiedFileNames = getJsFiles(modifiedFiles).map { it.name }.toSet()
     val removedFileNames = getJsFiles(removedFiles).map { it.name }.toSet()
 
@@ -101,6 +109,28 @@ internal class ZiplineCompiler(
       }
       .awaitAll()
       .toMap()
+  }
+
+  private fun compileNodeModules(
+    modules: Map<String, ZiplineManifest.Module>,
+    nodeModulesDir: File,
+  ): Map<String, ZiplineManifest.Module> {
+    val allModules = modules.toMutableMap()
+    val dependencies = ArrayDeque(allModules.values.flatMap { it.dependsOnIds })
+    while (dependencies.isNotEmpty()) {
+      val dependency = dependencies.removeFirst()
+      if (dependency !in allModules) {
+        // TODO is `main` the right property to be reading?
+        val dependencyDir = nodeModulesDir.resolve(dependency)
+        val packageJson = dependencyDir.resolve("package.json")
+        val npmPackage = npmPackageJson.decodeFromString<NpmPackage>(packageJson.readText())
+        val jsFile = dependencyDir.resolve(npmPackage.main ?: TODO())
+        val (_, module) = compileSingleFile(jsFile)
+        allModules[dependency] = module
+        dependencies.addAll(module.dependsOnIds)
+      }
+    }
+    return allModules
   }
 
   private fun compileSingleFile(
