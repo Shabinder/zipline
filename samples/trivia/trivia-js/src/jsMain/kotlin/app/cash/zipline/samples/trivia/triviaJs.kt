@@ -15,7 +15,17 @@
  */
 package app.cash.zipline.samples.trivia
 
+@JsModule("./external.js") // Webpack will bundle this
+@JsNonModule
+external fun getHelloFromJs(): String
+
 class RealTriviaService : TriviaService {
+  override fun testJs(): String {
+//    return "TODO: Hello from Kotlin/JS!"
+    js("console.log('Hello from Kotlin/JS!')")
+    return getHelloFromJs()
+  }
+
   private val gameWithAnswersList = listOf(
     GameWithAnswers(
       id = 0,

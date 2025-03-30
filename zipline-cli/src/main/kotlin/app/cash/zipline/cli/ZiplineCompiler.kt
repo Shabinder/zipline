@@ -21,7 +21,7 @@ import app.cash.zipline.bytecode.SourceMap
 import app.cash.zipline.bytecode.applySourceMapToBytecode
 import app.cash.zipline.bytecode.clean
 import app.cash.zipline.bytecode.stripLineNumbers
-import app.cash.zipline.gradle.internal.NpmPackage
+import app.cash.zipline.bytecode.NpmPackage
 import app.cash.zipline.loader.CURRENT_ZIPLINE_VERSION
 import app.cash.zipline.loader.ManifestSigner
 import app.cash.zipline.loader.ZiplineFile
@@ -59,7 +59,7 @@ internal class ZiplineCompiler(
     val jsFiles = getJsFiles(inputDir.listFiles()!!.asList())
     var modules = compileFilesInParallel(jsFiles)
     if (nodeModulesDir != null) {
-      modules = compileNodeModules(modules, nodeModulesDir, outputDir)
+      modules = compileNodeModules(modules, nodeModulesDir)
     }
     writeManifest(
       modules = modules,

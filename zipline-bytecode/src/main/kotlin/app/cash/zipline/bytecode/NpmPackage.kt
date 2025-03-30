@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Block, Inc.
+ * Copyright (C) 2025 Cash App
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,32 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package app.cash.zipline.samples.trivia
+package app.cash.zipline.bytecode
 
-import app.cash.zipline.ZiplineService
 import kotlinx.serialization.Serializable
 
-interface TriviaService : ZiplineService {
-  fun games(): List<TriviaGame>
-  fun answer(gameId: Int, questionId: Int, answer: String): AnswerResult
-  fun testJs(): String
-}
-
 @Serializable
-class TriviaGame(
-  val id: Int,
-  val name: String,
-  val questions: List<Question>,
-)
-
-@Serializable
-class Question(
-  val id: Int,
-  val text: String,
-)
-
-@Serializable
-class AnswerResult(
-  val correct: Boolean,
-  val message: String,
+data class NpmPackage(
+  val main: String?,
 )

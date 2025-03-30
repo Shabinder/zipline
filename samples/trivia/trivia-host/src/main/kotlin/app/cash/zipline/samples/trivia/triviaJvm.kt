@@ -62,7 +62,11 @@ fun main() {
   runBlocking(dispatcher) {
     val zipline = launchZipline(dispatcher)
     val triviaService = getTriviaService(zipline)
-    playGame(triviaService)
+    val res = triviaService.testJs()
+    println("---------------------------------------------------")
+    println(res)
+    println("---------------------------------------------------")
+    //playGame(triviaService)
   }
   exitProcess(0)
 }

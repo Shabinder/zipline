@@ -41,6 +41,7 @@ import org.gradle.work.ChangeType.REMOVED
 import org.gradle.work.Incremental
 import org.gradle.work.InputChanges
 import org.jetbrains.kotlin.gradle.targets.js.dsl.KotlinJsBinaryMode
+import org.jetbrains.kotlin.gradle.targets.js.npm.tasks.KotlinNpmInstallTask
 
 /**
  * Compiles `.js` files to `.zipline` files.
@@ -92,9 +93,20 @@ abstract class ZiplineCompileTask @Inject constructor(
     extension: ZiplineExtension,
     cliConfiguration: Configuration,
   ) {
+    // TODO handle Bundling in.
     description = "Compile .js to .zipline"
 
     classpath.setFrom(cliConfiguration)
+
+    val npmInstallTask =
+      project.rootProject.tasks.withType(KotlinNpmInstallTask::class.java).single()
+    val npmDir = npmInstallTask.nodeModules.get().asFile
+    if (npmDir.exists()) {
+      logger.debug("Found node_modules directory: {}", npmDir)
+      nodeModuleDir.set(npmDir)
+    } else {
+      logger.debug("No node_modules directory found for ${npmInstallTask.name}")
+    }
 
     inputDir.fileProvider(jsProductionTask.outputFile.map { it.asFile.parentFile })
 
@@ -113,14 +125,14 @@ abstract class ZiplineCompileTask @Inject constructor(
 
     signingKeys.set(
       project.provider {
-      extension.signingKeys.asMap.values
-    }.flatMap {
-      it.map { dslKey ->
-        dslKey.privateKeyHex.zip(dslKey.algorithmId) { privateKeyHex, algorithmId ->
-          ManifestSigningKey(dslKey.name, algorithmId, privateKeyHex.decodeHex())
-        }
-      }.flatten()
-    },
+        extension.signingKeys.asMap.values
+      }.flatMap {
+        it.map { dslKey ->
+          dslKey.privateKeyHex.zip(dslKey.algorithmId) { privateKeyHex, algorithmId ->
+            ManifestSigningKey(dslKey.name, algorithmId, privateKeyHex.decodeHex())
+          }
+        }.flatten()
+      },
     )
   }
 
@@ -146,12 +158,12 @@ abstract class ZiplineCompileTask @Inject constructor(
         add("--sign")
         add(
           buildString {
-          append(signingKey.algorithm.name)
-          append(':')
-          append(signingKey.name)
-          append(':')
-          append(signingKey.privateKey.hex())
-        },
+            append(signingKey.algorithm.name)
+            append(':')
+            append(signingKey.name)
+            append(':')
+            append(signingKey.privateKey.hex())
+          },
         )
       }
       version.orNull?.let {
@@ -171,10 +183,10 @@ abstract class ZiplineCompileTask @Inject constructor(
         for (fileChange in inputChanges.getFileChanges(inputDir)) {
           add(
             when (fileChange.changeType) {
-            ADDED -> "--added"
-            MODIFIED -> "--modified"
-            REMOVED -> "--removed"
-          },
+              ADDED -> "--added"
+              MODIFIED -> "--modified"
+              REMOVED -> "--removed"
+            },
           )
           add(fileChange.file.toString())
         }

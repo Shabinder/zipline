@@ -26,6 +26,7 @@ kotlin {
 
 zipline {
   mainFunction.set("app.cash.zipline.samples.trivia.launchZipline")
+  httpServerPort.set(8888)
 }
 
 plugins.withType<YarnPlugin> {

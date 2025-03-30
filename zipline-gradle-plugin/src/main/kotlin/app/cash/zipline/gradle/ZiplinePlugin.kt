@@ -31,9 +31,9 @@ import org.jetbrains.kotlin.gradle.plugin.SubpluginArtifact
 import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
 import org.jetbrains.kotlin.gradle.targets.js.ir.JsIrBinary
 import org.jetbrains.kotlin.gradle.targets.js.ir.KotlinJsIrTarget
+import org.jetbrains.kotlin.gradle.targets.js.npm.tasks.KotlinNpmInstallTask
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.jetbrains.kotlin.gradle.targets.js.npm.tasks.KotlinNpmInstallTask
 import org.slf4j.LoggerFactory
 
 @Suppress("unused") // Created reflectively by Gradle.
@@ -91,6 +91,7 @@ class ZiplinePlugin : KotlinCompilerPluginSupportPlugin {
         extension = ziplineExtension,
         cliConfiguration = cliConfiguration,
       )
+
       ziplineCompileTask.configure {
         it.dependsOn(kotlinWebpack)
       }
@@ -113,7 +114,13 @@ class ZiplinePlugin : KotlinCompilerPluginSupportPlugin {
 
         target.tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
           if ("Test" in kotlinCompile.name) return@withType
-          registerZiplineApiTask(target, kotlinCompile, cliConfiguration, Mode.Check, ziplineApiCheck)
+          registerZiplineApiTask(
+            target,
+            kotlinCompile,
+            cliConfiguration,
+            Mode.Check,
+            ziplineApiCheck
+          )
           registerZiplineApiTask(target, kotlinCompile, cliConfiguration, Mode.Dump, ziplineApiDump)
         }
       }
@@ -127,7 +134,8 @@ class ZiplinePlugin : KotlinCompilerPluginSupportPlugin {
     cliConfiguration: Configuration,
   ): TaskProvider<ZiplineCompileTask> {
     // TODO is this the best way to get the node_modules directory?
-    val npmInstallTask = project.rootProject.tasks.withType(KotlinNpmInstallTask::class.java).single()
+    val npmInstallTask =
+      project.rootProject.tasks.withType(KotlinNpmInstallTask::class.java).single()
     // TODO be configured in the task.
     // createdTask.nodeModuleDir.fileValue(npmInstallTask.nodeModulesDir)
 
@@ -205,7 +213,7 @@ class ZiplinePlugin : KotlinCompilerPluginSupportPlugin {
       task.javaHome.set(buildJvm.javaHome.path)
       task.jdkRelease.set(
         buildJvm.javaVersion?.getMajorVersion()?.toInt()
-        ?: Runtime.version().feature(),
+          ?: Runtime.version().feature(),
       )
 
       task.sourcepath.setFrom(compileTask.sources)
