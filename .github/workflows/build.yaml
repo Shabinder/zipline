@@ -13,41 +13,81 @@ env:
   GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dkotlin.incremental=false"
 
 jobs:
-  jvm-test:
+  zig:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - run: zig build -p src/jvmMain/resources/jni
+        working-directory: zipline
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jni-binaries
+          path: zipline/src/jvmMain/resources/jni
+          if-no-files-found: error
+
+  platform-tests:
+    needs:
+      - zig
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+        platform:
+          - os: macos-13
+            task: macosX64Test
+          - os: macos-latest
+            task: macosArm64Test
+          - os: ubuntu-latest
+            task: linuxX64Test
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.platform.os }}
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 21
+          java-version-file: .github/workflows/.java-version
 
-      - run: brew install zig
-        if: matrix.os == 'macos-latest'
-      - run: sudo snap install zig --classic --beta
-        if: matrix.os == 'ubuntu-latest'
+      - uses: actions/download-artifact@v4
+        with:
+          name: jni-binaries
+          path: zipline/src/jvmMain/resources/jni
 
-      - name: Build native libraries
-        run: |
-          if [[ "$(uname)" == "Darwin" ]]; then
-            xcodebuild -version
-            ln -s /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libSystem.B.tbd /opt/homebrew/Cellar/zig/0.13.0/lib/zig/libc/darwin/libSystem.tbd
-          fi
-          cd zipline
-          zig build
-          cd ..
+      - run: ./gradlew jvmTest ${{ matrix.platform.task }} apiCheck --stacktrace
 
-      - run: ./gradlew build --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-report-${{ matrix.platform.os }}
+          path: '**/build/reports/tests/**'
+          retention-days: 1
 
-  android-test:
+  samples:
+    runs-on: macos-latest
+    needs:
+      - zig
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version-file: .github/workflows/.java-version
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: jni-binaries
+          path: zipline/src/jvmMain/resources/jni
+
+      - run: ./gradlew -p samples check --stacktrace
+
+  android-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -55,7 +95,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 21
+          java-version-file: .github/workflows/.java-version
 
       - name: Enable KVM
         run: |
@@ -71,7 +111,7 @@ jobs:
           emulator-boot-timeout: 20000
           script: ./gradlew connectedCheck
 
-  ios:
+  ios-app:
     runs-on: macos-latest
 
     steps:
@@ -79,7 +119,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 21
+          java-version-file: .github/workflows/.java-version
 
       - name: Build Xcode samples
         run: |
@@ -87,28 +127,27 @@ jobs:
           pod install
           xcodebuild -workspace WorldClock.xcworkspace -scheme WorldClock -destination 'platform=iOS Simulator,name=iPhone 13,OS=latest'
 
-  publish:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: macos-latest
     needs:
-      - jvm-test
-      - android-test
-    if: ${{ (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/'))}}
+      - platform-tests
+      - samples
+      - android-tests
+      - ios-app
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: 21
+          java-version-file: .github/workflows/.java-version
 
-      - name: Build native libraries
-        run: |
-          sudo snap install zig --classic --beta
-          cd zipline
-          zig build
-          cd ..
+      - uses: actions/download-artifact@v4
+        with:
+          name: jni-binaries
+          path: zipline/src/jvmMain/resources/jni
 
-      - run: ./gradlew assemble dokkaHtmlMultiModule
+      - run: ./gradlew assemble :dokkaHtmlMultiModule
 
       - uses: actions/upload-artifact@v4
         with:
@@ -122,14 +161,27 @@ jobs:
           path: zipline/build/outputs/aar/*-release.aar
           if-no-files-found: error
 
-      - run: ./gradlew publish
-        env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.NEXUS_ACTIONS_SONATYPE_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.NEXUS_ACTIONS_SONATYPE_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.NEXUS_ACTIONS_GPG_PRIVATE_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.NEXUS_ACTIONS_GPG_PRIVATE_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zipline-cli.zip
+          path: zipline-cli/build/distributions/zipline-cli-*.zip
+          if-no-files-found: error
 
-      - name: Deploy snapshot docs to website
+      - uses: actions/upload-artifact@v4
+        with:
+          name: html-docs
+          path: build/dokka/htmlMultiModule/
+          if-no-files-found: error
+
+      - run: ./gradlew publishToMavenCentral
+        if: ${{ github.ref == 'refs/heads/trunk' && github.repository == 'cashapp/zipline' }}
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_USERNAME_APP_CASH }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_PASSWORD_APP_CASH }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SECRET_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_SECRET_PASSPHRASE }}
+
+      - name: Deploy docs to website
         if: ${{ github.ref == 'refs/heads/trunk' && github.repository == 'cashapp/zipline' }}
         uses: JamesIves/github-pages-deploy-action@releases/v3
         with:

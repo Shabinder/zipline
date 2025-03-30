@@ -39,3 +39,7 @@ zipline-gradle-plugin/src/test/projects/**/yarn.lock
 generated-zipline-webpack-config.js
 /zipline/.zig-cache/
 /.vscode
+
+# Zig
+.zig-cache
+zig-out

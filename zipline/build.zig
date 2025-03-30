@@ -1,172 +1,95 @@
 const std = @import("std");
-const builtin = @import("builtin");
-
-const targets: []const std.Target.Query = &.{
-    .{ .cpu_arch = .aarch64, .os_tag = .macos },
-    .{ .cpu_arch = .aarch64, .os_tag = .windows },
-    .{ .cpu_arch = .aarch64, .os_tag = .linux, .abi = .gnu },
-    .{ .cpu_arch = .x86_64, .os_tag = .macos },
-    .{ .cpu_arch = .x86_64, .os_tag = .windows },
-    .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu },
-};
 
 pub fn build(b: *std.Build) !void {
-    const al = std.heap.page_allocator;
+  // The Windows builds create a .lib file in the lib/ directory which we don't need.
+  const deleteLib = b.addRemoveDirTree(b.getInstallPath(.prefix, "lib"));
+  b.getInstallStep().dependOn(&deleteLib.step);
 
-    var version_buf: [128]u8 = undefined;
-    const version = try readVersionFile(&version_buf);
-
-    for (targets) |target| {
-        const quickjs = b.addSharedLibrary(.{
-            .name = "quickjs",
-            .version = null,
-            .target = b.resolveTargetQuery(target),
-            .optimize = .ReleaseSmall,
-            .pic = true, // Platform-independent code (i.e., relative jumps) to be safe.
-        });
-
-        try commonQuickJsSetup(b, quickjs, version, al);
-
-        const installStep = b.addInstallArtifact(quickjs, .{
-            .dest_dir = .{ .override = .{ .custom = try getOutputDir(target, al) } },
-        });
-        b.getInstallStep().dependOn(&installStep.step);
-    }
+  try setupTarget(b, &deleteLib.step, .linux, .aarch64, "aarch64");
+  try setupTarget(b, &deleteLib.step, .linux, .x86_64, "amd64");
+  try setupTarget(b, &deleteLib.step, .macos, .aarch64, "aarch64");
+  try setupTarget(b, &deleteLib.step, .macos, .x86_64, "x86_64");
 }
 
-fn commonQuickJsSetup(b: *std.Build, quickjs: *std.Build.Step.Compile, version: []const u8, al: std.mem.Allocator) !void {
-    var quoted_version_buf: [12]u8 = undefined;
-    const quoted_version = try std.fmt.bufPrint(&quoted_version_buf, "\"{s}\"", .{version});
-    quickjs.defineCMacro("CONFIG_VERSION", quoted_version);
-    // quickjs.defineCMacro("CONFIG_BIGNUM", "y");
+fn setupTarget(b: *std.Build, step: *std.Build.Step, tag: std.Target.Os.Tag, arch: std.Target.Cpu.Arch, dir: []const u8) !void {
+  const lib = b.addSharedLibrary(.{
+    .name = "quickjs",
+    .target = b.resolveTargetQuery(.{
+      .cpu_arch = arch,
+      .os_tag = tag,
+      // We need to explicitly specify gnu for linux, as otherwise it defaults to musl.
+      // See https://github.com/ziglang/zig/issues/16624#issuecomment-1801175600.
+      .abi = if (tag == .linux) .gnu else null,
+    }),
+    .optimize = .ReleaseSmall,
+  });
 
-    // Add the JDK's include/ headers.
-    const java_home = try std.process.getEnvVarOwned(al, "JAVA_HOME");
-    defer al.free(java_home);
+  var version_buf: [11]u8 = undefined;
+  const version = try readVersionFile(&version_buf);
+  var quoted_version_buf: [12]u8 = undefined;
+  const quoted_version = try std.fmt.bufPrint(&quoted_version_buf, "\"{s}\"", .{ version });
+  lib.defineCMacro("CONFIG_VERSION", quoted_version);
 
-    const java_include = try std.fs.path.join(al, &[_][]const u8{ java_home, "include" });
-    defer al.free(java_include);
-
-    quickjs.addIncludePath(absPath(java_include));
-
-    // Walk the include/ directory for any child dirs (usually platform specific) and add them too.
-    const java_include_dir = try std.fs.cwd().openDir(java_include, .{ .iterate = true });
-    var jdk_walker = try java_include_dir.walk(al);
-    defer jdk_walker.deinit();
-
-    while (try jdk_walker.next()) |entry| {
-        switch (entry.kind) {
-            .directory => {
-                const include_subdir = try std.fs.path.join(al, &[_][]const u8{ java_include, entry.path });
-                defer al.free(include_subdir);
-
-                quickjs.addIncludePath(absPath(include_subdir));
-            },
-            else => {},
-        }
+  lib.addIncludePath(b.path("native/include/share"));
+  lib.addIncludePath(
+    switch (tag) {
+      .windows => b.path("native/include/windows"),
+      else => b.path("native/include/unix"),
     }
+  );
 
-    quickjs.linkLibC();
-    const quickjsCFiles = try listFilesWithExtension(".c", al, "native/quickjs/", false);
-    const commonCFiles = try listFilesWithExtension(".c", al, "native/common/", false);
-    quickjs.addCSourceFiles(.{ .files = quickjsCFiles, .flags = &.{
-        "-std=gnu99",
-    } });
-    quickjs.addCSourceFiles(.{ .files = commonCFiles, .flags = &.{
-        "-std=gnu99",
-    } });
+  lib.linkLibC();
+  // TODO Tree-walk these two dirs for all C files.
+  lib.addCSourceFiles(.{
+    .files = &.{
+      "native/common/context-no-eval.c",
+      "native/common/finalization-registry.c",
+      "native/common/global-gc.c",
+      "native/quickjs/cutils.c",
+      "native/quickjs/libregexp.c",
+      "native/quickjs/libunicode.c",
+      "native/quickjs/quickjs.c",
+    },
+    .flags = &.{
+      "-std=gnu99",
+    },
+  });
 
-    quickjs.linkLibCpp();
-    quickjs.addCSourceFiles(.{ .files = try listFilesWithExtension(".cpp", al, "native/", false), .flags = &.{
-        "-std=c++11",
-    } });
+  lib.linkLibCpp();
+  // TODO Tree-walk this dirs for all C++ files.
+  lib.addCSourceFiles(.{
+    .files = &.{
+      "native/Context.cpp",
+      "native/ExceptionThrowers.cpp",
+      "native/InboundCallChannel.cpp",
+      "native/OutboundCallChannel.cpp",
+      "native/quickjs-jni.cpp",
+    },
+    .flags = &.{
+      "-std=c++11",
+    },
+  });
 
-    if (quickjs.rootModuleTarget().os.tag == .windows) {
-        quickjs.defineCMacro("CONFIG_WIN32", "y");
+  const install = b.addInstallArtifact(lib, .{
+    .dest_dir = .{
+      .override = .{
+        .custom = dir,
+      },
+    },
+  });
 
-        // Add native/winpthreads.
-        const winpthreadsCFiles = try listFilesWithExtension(".c", al, "native/winpthreads/src/", true);
-        quickjs.addCSourceFiles(.{ .files = winpthreadsCFiles, .flags = &.{
-            "-std=gnu99",
-        } });
-
-        quickjs.addIncludePath(b.path("native/winpthreads/include"));
-        quickjs.addIncludePath(b.path("native/winpthreads/src"));
-    }
+  step.dependOn(&install.step);
 }
 
 fn readVersionFile(version_buf: []u8) ![]u8 {
-    const version_file = try std.fs.cwd().openFile(
-        "native/quickjs/VERSION",
-        .{ .mode = .read_only },
-    );
-    defer version_file.close();
+  const version_file = try std.fs.cwd().openFile(
+    "native/quickjs/VERSION",
+    .{ },
+  );
+  defer version_file.close();
 
-    var version_file_reader = std.io.bufferedReader(version_file.reader());
-    var version_file_stream = version_file_reader.reader();
-    const version = try version_file_stream.readUntilDelimiterOrEof(version_buf, '\n');
-    return version.?;
-}
-
-fn absPath(path: []const u8) std.Build.LazyPath {
-    return std.Build.LazyPath{ .cwd_relative = path };
-}
-
-fn getOutputDir(target: std.Target.Query, allocator: std.mem.Allocator) ![]const u8 {
-    const os_tag = target.os_tag orelse return error.MissingOSTag;
-    const cpu_arch = target.cpu_arch orelse return error.MissingCPUArch;
-
-    const os_dir = switch (os_tag) {
-        .macos => "macos",
-        .linux => "linux",
-        .windows => "windows",
-        else => return error.UnsupportedOSTag,
-    };
-
-    const arch_dir = switch (cpu_arch) {
-        .aarch64 => "arm64",
-        .x86_64 => "x64",
-        else => return error.UnsupportedCPUArch,
-    };
-
-    var buffer: [64]u8 = undefined; // Adjust the size as necessary
-    const outputDir = try std.fmt.bufPrint(&buffer, "../src/jvmMain/resources/jni/{s}/{s}", .{ os_dir, arch_dir });
-
-    return allocator.dupe(u8, outputDir);
-}
-
-fn listFilesWithExtension(ext: []const u8, allocator: std.mem.Allocator, dir_path: []const u8, recursive: bool) ![]const []const u8 {
-    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
-    defer dir.close();
-
-    var files = std.ArrayList([]const u8).init(allocator);
-
-    var it = dir.iterate();
-
-    while (try it.next()) |entry| {
-        const full_path = try std.fs.path.join(allocator, &[_][]const u8{ dir_path, entry.name });
-
-        if (entry.kind == .directory) {
-            if (recursive) {
-                // Recursively collect files in subdirectories (if enabled)
-                const subfiles = try listFilesWithExtension(ext, allocator, full_path, recursive);
-                defer allocator.free(subfiles);
-
-                for (subfiles) |subfile| {
-                    try files.append(subfile);
-                }
-            }
-            allocator.free(full_path);
-        } else if (entry.kind == .file) {
-            if (std.mem.endsWith(u8, entry.name, ext)) {
-                try files.append(full_path);
-            } else {
-                allocator.free(full_path);
-            }
-        } else {
-            allocator.free(full_path);
-        }
-    }
-
-    return files.toOwnedSlice();
+  var version_file_reader = std.io.bufferedReader(version_file.reader());
+  var version_file_stream = version_file_reader.reader();
+  const version = try version_file_stream.readUntilDelimiterOrEof(version_buf, '\n');
+  return version.?;
 }
