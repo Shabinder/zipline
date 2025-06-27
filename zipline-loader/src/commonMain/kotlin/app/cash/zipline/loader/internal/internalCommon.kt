@@ -20,8 +20,8 @@ import app.cash.zipline.loader.SignatureAlgorithmId
 import app.cash.zipline.loader.internal.tink.subtle.Ed25519
 import io.ktor.http.URLBuilder
 import io.ktor.http.takeFrom
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 // TODO: drop this once we adopt Kotlin Hierarchical Multiplatform projects
 internal expect fun Zipline.multiplatformLoadJsModule(bytecode: ByteArray, id: String)
@@ -41,6 +41,7 @@ internal fun SignatureAlgorithmId.get(): SignatureAlgorithm {
   }
 }
 
+@OptIn(ExperimentalTime::class)
 internal val systemEpochMsClock: () -> Long = {
   Clock.System.now().toEpochMilliseconds()
 }

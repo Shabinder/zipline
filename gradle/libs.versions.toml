@@ -8,7 +8,7 @@ kotlinx-serialization = "1.8.1"
 okHttp = "4.12.0"
 okio = "3.13.0"
 minSdk = "21"
-ktor_version="2.3.12"
+ktor_version="3.2.0"
 sqldelight = "2.1.0"
 
 [libraries]
@@ -43,7 +43,7 @@ kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 kotlin-serialization = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
 kotlin-compilerEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
-kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version = "0.6.0" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version = "0.6.2" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor_version" }
 ktor-client-json = { module = "io.ktor:ktor-client-json", version.ref = "ktor_version" }
 ktor-client-serialization = { module = "io.ktor:ktor-client-serialization", version.ref = "ktor_version" }

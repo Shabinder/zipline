@@ -95,7 +95,12 @@ subprojects {
 
     testLogging {
       if (System.getenv("CI") == "true") {
-        events = setOf(TestLogEvent.STARTED, TestLogEvent.FAILED, TestLogEvent.SKIPPED, TestLogEvent.PASSED)
+        events = setOf(
+          TestLogEvent.STARTED,
+          TestLogEvent.FAILED,
+          TestLogEvent.SKIPPED,
+          TestLogEvent.PASSED
+        )
       }
       exceptionFormat = TestExceptionFormat.FULL
     }
@@ -109,10 +114,12 @@ tasks.named("dokkaHtmlMultiModule", DokkaMultiModuleTask::class.java).configure 
 allprojects {
   tasks.withType<DokkaTaskPartial>().configureEach {
     dokkaSourceSets.configureEach {
-      documentedVisibilities.set(setOf(
-        Visibility.PUBLIC,
-        Visibility.PROTECTED
-      ))
+      documentedVisibilities.set(
+        setOf(
+          Visibility.PUBLIC,
+          Visibility.PROTECTED
+        )
+      )
       reportUndocumented.set(false)
       jdkVersion.set(11)
 
@@ -137,7 +144,8 @@ allprojects {
   // We disable the C Interop IDE metadata task when generating documentation using Dokka.
   tasks.withType<AbstractDokkaTask> {
     @Suppress("UNCHECKED_CAST")
-    val taskClass = Class.forName("org.jetbrains.kotlin.gradle.targets.native.internal.CInteropMetadataDependencyTransformationTask") as Class<Task>
+    val taskClass =
+      Class.forName("org.jetbrains.kotlin.gradle.targets.native.internal.CInteropMetadataDependencyTransformationTask") as Class<Task>
     parent?.subprojects?.forEach {
       dependsOn(it.tasks.withType(taskClass))
     }
@@ -154,12 +162,14 @@ allprojects {
       jvmToolchain(11)
       @Suppress("OPT_IN_USAGE")
       compilerOptions {
+        optIn.add("org.jetbrains.kotlin.DeprecatedForRemovalCompilerApi")
         freeCompilerArgs.addAll("-opt-in=app.cash.zipline.EngineApi")
       }
       // https://youtrack.jetbrains.com/issue/KT-61573
       targets.configureEach {
         compilations.configureEach {
           compilerOptions.configure {
+            optIn.add("org.jetbrains.kotlin.DeprecatedForRemovalCompilerApi")
             freeCompilerArgs.addAll("-Xexpect-actual-classes")
           }
         }
