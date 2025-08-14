@@ -24,6 +24,7 @@ import org.gradle.api.artifacts.Configuration
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.internal.jvm.Jvm
+import org.jetbrains.kotlin.gradle.dsl.JsModuleKind.MODULE_UMD
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
@@ -69,6 +70,12 @@ class ZiplinePlugin : KotlinCompilerPluginSupportPlugin {
     )
 
     kotlinExtension.targets.withType(KotlinJsIrTarget::class.java).all { kotlinTarget ->
+      kotlinTarget.compilerOptions {
+        // Target latest JS to get classes, arrow functions, etc.
+        this.target.set("es2015")
+        // But our loader requires we still use the old module format.
+        this.moduleKind.set(MODULE_UMD)
+      }
       kotlinTarget.binaries.withType(JsIrBinary::class.java).all { kotlinBinary ->
         registerCompileZiplineTask(
           project = target,

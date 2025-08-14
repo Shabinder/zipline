@@ -239,9 +239,13 @@ class CacheFaultsTester {
       binders: (SqlPreparedStatement.() -> Unit)?,
     ): QueryResult<Long> {
       fileSystemWriteCount++
-      if (fileSystemWriteCount >= fileSystemWriteLimit) throw IOException("write limit exceeded")
+      if (fileSystemWriteCount >= fileSystemWriteLimit) {
+        throw SqlFaultException("write limit exceeded")
+      }
 
       return delegate.execute(identifier, sql, parameters, binders)
     }
   }
+
+  private class SqlFaultException(message: String) : Exception(message)
 }

@@ -15,7 +15,7 @@ plugins {
 kotlin {
   jvm()
   androidTarget {
-    publishAllLibraryVariants()
+    publishLibraryVariants("release")
   }
 
   linuxX64()

@@ -204,7 +204,8 @@ cklib {
         "-Wno-unused-function",
         "-Wno-error=atomic-alignment",
         "-Wno-sign-compare",
-        "-Wno-unused-parameter" /* for windows 32 */
+        "-Wno-unused-parameter", /* for windows 32 */
+        "-D_Float16=short", // KT-69094
       )
     )
   }

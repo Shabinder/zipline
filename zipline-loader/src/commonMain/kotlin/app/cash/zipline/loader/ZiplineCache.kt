@@ -201,7 +201,7 @@ class ZiplineCache internal constructor(
       try {
         fileSystem.delete(path)
         database.filesQueries.delete(metadata.id)
-      } catch (ignored: IOException) {
+      } catch (ignored: Exception) {
       }
       return null
     }
@@ -418,7 +418,7 @@ class ZiplineCache internal constructor(
     try {
       deleteDirtyFiles()
       prune()
-    } catch (e: IOException) {
+    } catch (e: Exception) {
       hasWriteFailures = true // Mark this cache as broken.
       loaderEventListener.cacheStorageFailed(null, e)
     }

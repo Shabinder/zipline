@@ -23,6 +23,7 @@ import app.cash.zipline.testing.EchoService
 import app.cash.zipline.testing.PotatoService
 import app.cash.zipline.testing.SuspendingEchoService
 import app.cash.zipline.testing.SuspendingPotatoService
+import app.cash.zipline.testing.UnitService
 import app.cash.zipline.testing.loadTestingJs
 import assertk.assertThat
 import assertk.assertions.containsExactlyInAnyOrder
@@ -475,6 +476,24 @@ class ZiplineTest {
     zipline.quickJs.evaluate("testing.app.cash.zipline.testing.callSuspendingEchoService('')")
     assertThat(zipline.quickJs.evaluate("testing.app.cash.zipline.testing.suspendingEchoResult"))
       .isEqualTo("response 3")
+  }
+
+  /** https://github.com/cashapp/zipline/issues/1618 */
+  @Test fun callUnitService() = runTest(dispatcher) {
+    zipline.quickJs.evaluate("testing.app.cash.zipline.testing.prepareUnitServiceJsBridges()")
+
+    val unitService = zipline.take<UnitService>("unitService")
+    unitService.call()
+    unitService.call()
+    unitService.call()
+    assertThat(unitService.count()).isEqualTo(3)
+    unitService.callSuspending()
+    unitService.callSuspending()
+    assertThat(unitService.count()).isEqualTo(5)
+    assertThat(unitService.nullableUnitReturnsUnit()).isEqualTo(Unit)
+    assertThat(unitService.nullableUnitReturnsNull()).isNull()
+    assertThat(unitService.nullableUnitReturnsUnitSuspending()).isEqualTo(Unit)
+    assertThat(unitService.nullableUnitReturnsNullSuspending()).isNull()
   }
 
   private class JvmEchoService(private val greeting: String) : EchoService {

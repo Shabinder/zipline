@@ -5,6 +5,35 @@
 * In-development snapshots are now published to the Central Portal Snapshots repository at https://central.sonatype.com/repository/maven-snapshots/.
 
 
+## [1.22.0] - 2025-07-25
+[1.22.0]: https://github.com/cashapp/zipline/releases/tag/1.22.0
+
+ * Upgrade: [Kotlin 2.2.0][kotlin_2_2_0].
+ * Upgrade: [OkHttp 5.1.0][okhttp_5_1_0].
+
+
+## [1.21.1] - 2025-07-17
+[1.21.1]: https://github.com/cashapp/zipline/releases/tag/1.21.1
+
+ * Fix: Recover from more SQL exceptions. We had a bug on Kotlin/Native where a full disk on the
+   host device would cause the disk cache to crash. With this update it gracefully degrades to not
+   caching.
+ * Fix: Work-around Kotlin/JS treating null as Unit. When we updated our intermediate JavaScript to
+   es2015, that caused `suspend` functions that return `Unit` to crash. We now explicitly handle
+   cases where functions that should return `Unit` don’t!
+
+
+## [1.21.0] - 2025-07-15
+[1.21.0]: https://github.com/cashapp/zipline/releases/tag/1.21.0
+
+ * New: Switch to ES2015 as our intermediate target when compiling from Kotlin to JavaScript to
+   QuickJS bytecode. This results in artifacts that better preserve function names in stack traces.
+   Note that this benefit isn't free; gzipped artifacts are about 3% larger with this update!
+ * Upgrade: [Okio 3.15.0][okio_3_15_0].
+ * Upgrade: [SQLDelight 2.1.0][sqldelight_2_1_0].
+ * Upgrade: [Kotlin 2.1.21][kotlin_2_1_21].
+
+
 ## [1.20.1] - 2025-04-02
 [1.20.1]: https://github.com/cashapp/zipline/releases/tag/1.20.1
 
@@ -594,6 +623,8 @@ Initial release.
 [kotlin_1_9_20]: https://github.com/JetBrains/kotlin/releases/tag/v1.9.20
 [kotlin_1_9_23]: https://github.com/JetBrains/kotlin/releases/tag/v1.9.23
 [kotlin_2_0_0]: https://github.com/JetBrains/kotlin/releases/tag/v2.0.0
+[kotlin_2_1_21]: https://github.com/JetBrains/kotlin/releases/tag/v2.1.21
+[kotlin_2_2_0]: https://github.com/JetBrains/kotlin/releases/tag/v2.2.0
 [kotlin_serialization_1_4_0]: https://github.com/Kotlin/kotlinx.serialization/releases/tag/v1.4.0
 [kotlin_serialization_1_5_0]: https://github.com/Kotlin/kotlinx.serialization/releases/tag/v1.5.0
 [kotlin_serialization_1_5_1]: https://github.com/Kotlin/kotlinx.serialization/releases/tag/v1.5.1
@@ -606,9 +637,12 @@ Initial release.
 [kotlinx_coroutines_1_7_3]: https://github.com/Kotlin/kotlinx.coroutines/releases/tag/1.7.3
 [kotlinx_coroutines_1_8_0]: https://github.com/Kotlin/kotlinx.coroutines/releases/tag/1.8.0
 [kotlinx_coroutines_1_9_0]: https://github.com/Kotlin/kotlinx.coroutines/releases/tag/1.9.0
+[okio_3_15_0]: https://square.github.io/okio/changelog/#version-3150
 [okio_3_7_0]: https://square.github.io/okio/changelog/#version-370
 [okio_3_9_0]: https://square.github.io/okio/changelog/#version-390
 [okio_3_9_1]: https://square.github.io/okio/changelog/#version-391
+[okhttp_5_1_0]: https://square.github.io/okhttp/changelogs/changelog/#version-510
 [oracle_linux_8]: https://docs.oracle.com/en/operating-systems/oracle-linux/8/
 [sqldelight_2_0_0]: https://cashapp.github.io/sqldelight/2.0.0/changelog/#200-2023-07-26
 [sqldelight_2_0_2]: https://cashapp.github.io/sqldelight/2.0.2/changelog/#202-2024-04-05
+[sqldelight_2_1_0]: https://sqldelight.github.io/sqldelight/2.1.0/changelog/

@@ -1,7 +1,6 @@
 import com.android.build.gradle.BaseExtension
 import com.diffplug.gradle.spotless.SpotlessExtension
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
-import com.vanniktech.maven.publish.SonatypeHost
 import java.net.URI
 import java.net.URL
 import kotlinx.validation.ApiValidationExtension
