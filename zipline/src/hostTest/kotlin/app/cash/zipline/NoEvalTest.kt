@@ -23,7 +23,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * Confirm our JavaScript engine doesn't allow eval.
+ * Confirm our JavaScript engine supports eval (SOUNDBOUND fork - eval enabled).
  */
 class NoEvalTest {
   private val quickJs = QuickJs.create()
@@ -34,14 +34,19 @@ class NoEvalTest {
   }
 
   @Test
-  fun quickJsDoesNotSupportEval() {
+  fun quickJsSupportEval() {
     // QuickJs.evaluate works
     assertEquals(6, quickJs.evaluate("3+3", "shouldSucceed.js"))
 
-    val e = assertFailsWith<Exception> {
-      // eval in JS code doesn't
-      quickJs.evaluate("eval('3+3')", "shouldFail.js")
-    }
-    assertThat(e.message!!).startsWith("eval is not supported")
+    // SOUNDBOUND: eval() is now enabled
+    val result = quickJs.evaluate("eval('3+3')", "evalShouldWork.js")
+    assertEquals(6, result)
+  }
+
+  @Test
+  fun quickJsSupportsFunction() {
+    // SOUNDBOUND: Function constructor should also work
+    val result = quickJs.evaluate("new Function('return 2 + 2')()", "functionShouldWork.js")
+    assertEquals(4, result)
   }
 }
