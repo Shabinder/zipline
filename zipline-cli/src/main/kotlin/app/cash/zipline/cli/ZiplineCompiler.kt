@@ -112,7 +112,57 @@ internal class ZiplineCompiler(
 
     val quickJs = QuickJs.create()
     quickJs.use {
-      var bytecode = quickJs.compile(jsFile.readText(), jsFile.name)
+      val jsContent = jsFile.readText()
+      var bytecode = try {
+        quickJs.compile(jsContent, jsFile.name)
+      } catch (e: Exception) {
+        // Use Node.js --check for better syntax error messages with exact line numbers
+        val nodeErrorInfo = runNodeSyntaxCheck(jsFile)
+
+        val lines = jsContent.lines()
+
+        // Build comprehensive error message
+        val context = buildString {
+          appendLine("=".repeat(80))
+          appendLine("QUICKJS COMPILATION ERROR")
+          appendLine("=".repeat(80))
+          appendLine("File: ${jsFile.absolutePath}")
+          appendLine("Total lines: ${lines.size}")
+          appendLine()
+          appendLine("QuickJS Error: ${e.message}")
+          appendLine()
+
+          if (nodeErrorInfo != null) {
+            appendLine("=== NODE.JS SYNTAX CHECK (more precise) ===")
+            appendLine(nodeErrorInfo.errorOutput)
+            appendLine()
+
+            if (nodeErrorInfo.errorLine > 0 && nodeErrorInfo.errorLine <= lines.size) {
+              appendLine("=== CONTEXT (lines ${maxOf(1, nodeErrorInfo.errorLine - 3)} to ${minOf(lines.size, nodeErrorInfo.errorLine + 3)}) ===")
+              for (i in maxOf(0, nodeErrorInfo.errorLine - 4) until minOf(lines.size, nodeErrorInfo.errorLine + 3)) {
+                val marker = if (i == nodeErrorInfo.errorLine - 1) ">>> " else "    "
+                appendLine("$marker${i + 1}: ${lines[i].take(200)}")
+              }
+            }
+          } else {
+            appendLine("=== NODE.JS NOT AVAILABLE - Using QuickJS error only ===")
+            appendLine("TIP: Install Node.js for more precise syntax error messages")
+            appendLine("     Run manually: node --check ${jsFile.absolutePath}")
+          }
+
+          appendLine()
+          appendLine("=== COMMON CAUSES ===")
+          appendLine("1. Comments between '}' and 'else' in Kotlin js() blocks - move comments INSIDE blocks")
+          appendLine("2. Semicolons before 'else' statements (};  else)")
+          appendLine("3. Incomplete/malformed JavaScript in js() raw strings")
+          appendLine("=".repeat(80))
+        }
+
+        // Write to temp file for debugging
+        File("/tmp/quickjs_error.txt").writeText(context)
+
+        throw RuntimeException(context, e)
+      }
 
       if (jsSourceMapFile.exists()) {
         // Rewrite the bytecode with source line numbers.
@@ -170,5 +220,54 @@ internal class ZiplineCompiler(
     app.cash.zipline.internal.collectModuleDependencies(quickJs)
     quickJs.execute(bytecode)
     return app.cash.zipline.internal.getModuleDependencies(quickJs)
+  }
+
+  /**
+   * Data class holding Node.js syntax check results.
+   */
+  private data class NodeErrorInfo(
+    val errorLine: Int,
+    val errorColumn: Int,
+    val errorOutput: String,
+  )
+
+  /**
+   * Run Node.js --check on the file to get precise syntax error location.
+   * Node.js provides better error messages with exact line:column numbers.
+   *
+   * @return NodeErrorInfo with parsed error details, or null if Node.js unavailable
+   */
+  private fun runNodeSyntaxCheck(jsFile: File): NodeErrorInfo? {
+    return try {
+      val process = ProcessBuilder("node", "--check", jsFile.absolutePath)
+        .redirectErrorStream(true)
+        .start()
+
+      val output = process.inputStream.bufferedReader().readText()
+      val exitCode = process.waitFor()
+
+      if (exitCode == 0) {
+        // No syntax error according to Node.js
+        return null
+      }
+
+      // Parse line number from Node.js error output
+      // Format: "/path/to/file.js:5247\n         else if..."
+      // Or: "SyntaxError: ... at line 5247"
+      val lineRegex = Regex("""${Regex.escape(jsFile.absolutePath)}:(\d+)(?::(\d+))?""")
+      val match = lineRegex.find(output)
+
+      val errorLine = match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+      val errorColumn = match?.groupValues?.getOrNull(2)?.toIntOrNull() ?: 0
+
+      NodeErrorInfo(
+        errorLine = errorLine,
+        errorColumn = errorColumn,
+        errorOutput = output.trim()
+      )
+    } catch (e: Exception) {
+      // Node.js not available or other error
+      null
+    }
   }
 }
