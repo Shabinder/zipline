@@ -265,6 +265,29 @@ void Context::gc(JNIEnv* env) {
   JS_RunGC(jsRuntime);
 }
 
+jint Context::executePendingJobs(JNIEnv* env) {
+  JSContext* ctx;
+  int executed = 0;
+  while (true) {
+    int ret = JS_ExecutePendingJob(jsRuntime, &ctx);
+    if (ret < 0) {
+      // Error occurred while executing job
+      if (ctx) {
+        JSValue exception = JS_GetException(ctx);
+        throwJsException(env, exception);
+        JS_FreeValue(ctx, exception);
+      }
+      return -1;
+    }
+    if (ret == 0) {
+      // No more jobs
+      break;
+    }
+    executed++;
+  }
+  return executed;
+}
+
 InboundCallChannel* Context::getInboundCallChannel(JNIEnv* env, jstring name) {
   JSValue global = JS_GetGlobalObject(jsContext);
 

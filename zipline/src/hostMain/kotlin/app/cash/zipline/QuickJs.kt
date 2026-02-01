@@ -88,5 +88,18 @@ expect class QuickJs : AutoCloseable {
    */
   fun gc()
 
+  /**
+   * Execute all pending JavaScript Promise/microtask jobs.
+   *
+   * This processes the JavaScript microtask queue, which is needed for Promise
+   * callbacks (.then, .catch, .finally) and async/await to work properly.
+   *
+   * Call this after code that should trigger Promise resolution to ensure that
+   * all pending microtasks are executed.
+   *
+   * @return The number of jobs executed, or -1 if an error occurred.
+   */
+  fun executePendingJobs(): Int
+
   override fun close()
 }

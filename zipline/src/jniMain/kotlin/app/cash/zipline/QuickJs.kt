@@ -131,6 +131,18 @@ actual class QuickJs private constructor(
   }
 
   /**
+   * Execute all pending JavaScript Promise/microtask jobs.
+   *
+   * This processes the JavaScript microtask queue, which is needed for Promise
+   * callbacks (.then, .catch, .finally) and async/await to work properly.
+   *
+   * @return The number of jobs executed, or -1 if an error occurred.
+   */
+  actual fun executePendingJobs(): Int {
+    return executePendingJobs(context)
+  }
+
+  /**
    * Compile [sourceCode] and return the bytecode. [fileName] will be used in error
    * reporting.
    *
@@ -173,6 +185,7 @@ actual class QuickJs private constructor(
   private external fun setMemoryLimit(context: Long, limit: Long)
   private external fun setGcThreshold(context: Long, gcThreshold: Long)
   private external fun gc(context: Long)
+  private external fun executePendingJobs(context: Long): Int
   private external fun setMaxStackSize(context: Long, stackSize: Long)
 }
 

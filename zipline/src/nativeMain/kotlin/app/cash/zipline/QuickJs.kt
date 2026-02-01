@@ -398,6 +398,36 @@ actual class QuickJs private constructor(
     JS_RunGC(runtime)
   }
 
+  actual fun executePendingJobs(): Int {
+    var executed = 0
+    while (true) {
+      memScoped {
+        val pctx = alloc<CPointerVar<JSContext>>()
+        val ret = JS_ExecutePendingJob(runtime, pctx.ptr)
+        when {
+          ret < 0 -> {
+            // Error occurred
+            val ctx = pctx.value
+            if (ctx != null) {
+              val exception = JS_GetException(ctx)
+              val jsException = toKotlinException(exception)
+              JS_FreeValue(ctx, exception)
+              throw jsException
+            }
+            return -1
+          }
+          ret == 0 -> {
+            // No more jobs
+            return executed
+          }
+          else -> {
+            executed++
+          }
+        }
+      }
+    }
+  }
+
   actual override fun close() {
     if (!closed) {
       functionList?.let { ptr ->
