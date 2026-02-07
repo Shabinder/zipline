@@ -20,6 +20,7 @@ package app.cash.zipline
 import app.cash.zipline.internal.bridge.CallChannel
 import app.cash.zipline.internal.bridge.INBOUND_CHANNEL_NAME
 import app.cash.zipline.internal.bridge.OUTBOUND_CHANNEL_NAME
+import io.github.shabinder.quickJsVersion
 import app.cash.zipline.quickjs.JSCFunctionListEntry
 import app.cash.zipline.quickjs.JSClassDef
 import app.cash.zipline.quickjs.JSClassIDVar
@@ -33,6 +34,7 @@ import app.cash.zipline.quickjs.JS_EVAL_FLAG_COMPILE_ONLY
 import app.cash.zipline.quickjs.JS_EVAL_FLAG_STRICT
 import app.cash.zipline.quickjs.JS_Eval
 import app.cash.zipline.quickjs.JS_EvalFunction
+import app.cash.zipline.quickjs.JS_ExecutePendingJob
 import app.cash.zipline.quickjs.JS_FreeAtom
 import app.cash.zipline.quickjs.JS_FreeCString
 import app.cash.zipline.quickjs.JS_FreeContext
@@ -95,6 +97,7 @@ import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.CArrayPointer
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.CPointerVar
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -444,6 +447,22 @@ actual class QuickJs private constructor(
 
   internal fun checkNotClosed() {
     check(!closed) { "QuickJs instance was closed" }
+  }
+
+  private fun toKotlinException(exceptionValue: CValue<JSValue>): QuickJsException {
+    val messageValue = JS_GetPropertyStr(context, exceptionValue, "message")
+    val stackValue = JS_GetPropertyStr(context, exceptionValue, "stack")
+
+    val message = JS_ToCString(
+      context,
+      messageValue.takeUnless { JS_IsUndefined(messageValue) != 0 } ?: exceptionValue,
+    )?.toKStringFromUtf8() ?: ""
+    JS_FreeValue(context, messageValue)
+
+    val stack = JS_ToCString(context, stackValue)!!.toKStringFromUtf8()
+    JS_FreeValue(context, stackValue)
+
+    return QuickJsException(message, stack)
   }
 
   private fun throwJsException(): Nothing {

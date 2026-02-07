@@ -169,7 +169,7 @@ buildConfig {
   }
 
   sourceSets.named("hostMain") {
-    packageName("app.cash.zipline")
+    packageName("io.github.shabinder")
     buildConfigField("String", "quickJsVersion", "\"${quickJsVersion()}\"")
   }
 }
@@ -197,7 +197,7 @@ cklib {
 }
 
 android {
-  namespace = "app.cash.zipline"
+  namespace = "io.github.shabinder"
   compileSdk = libs.versions.compileSdk.get().toInt()
 
   defaultConfig {

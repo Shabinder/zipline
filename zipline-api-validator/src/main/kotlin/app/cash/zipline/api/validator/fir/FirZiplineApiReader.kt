@@ -59,7 +59,7 @@ fun readFirZiplineApi(
 }
 
 private val ziplineServiceClassId =
-  ClassId(FqName("app.cash.zipline"), Name.identifier("ZiplineService"))
+  ClassId(FqName("io.github.shabinder"), Name.identifier("ZiplineService"))
 
 private val autoCloseableClassId =
   ClassId(FqName("java.lang"), Name.identifier("AutoCloseable"))

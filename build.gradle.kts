@@ -50,7 +50,7 @@ tasks.named("dokkaHtmlMultiModule", DokkaMultiModuleTask::class.java).configure 
 }
 
 allprojects {
-  group = "app.cash.zipline"
+  group = "io.github.shabinder"
   version = project.property("VERSION_NAME") as String
 
   repositories {

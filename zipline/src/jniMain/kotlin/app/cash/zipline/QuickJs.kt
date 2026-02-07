@@ -19,6 +19,7 @@ import app.cash.zipline.internal.bridge.CallChannel
 import app.cash.zipline.internal.bridge.INBOUND_CHANNEL_NAME
 import app.cash.zipline.internal.bridge.OUTBOUND_CHANNEL_NAME
 import app.cash.zipline.internal.log
+import io.github.shabinder.quickJsVersion
 import java.io.Closeable
 
 /**
