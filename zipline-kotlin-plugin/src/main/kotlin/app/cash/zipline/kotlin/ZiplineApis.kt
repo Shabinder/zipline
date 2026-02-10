@@ -43,7 +43,7 @@ internal class ZiplineApis private constructor(
       return ZiplineApis(pluginContext)
     }
 
-    private val ziplineFqPackage = FqPackageName("io.github.shabinder")
+    private val ziplineFqPackage = FqPackageName("app.cash.zipline")
     private val bridgeFqPackage = FqPackageName("app.cash.zipline.internal.bridge")
     private val serializationFqPackage = FqPackageName("kotlinx.serialization")
     private val serializationBuiltInsFqPackage = FqPackageName("kotlinx.serialization.builtins")
