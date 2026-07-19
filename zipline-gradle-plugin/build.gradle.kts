@@ -70,9 +70,7 @@ tasks {
       }
     )
     systemProperty("ziplineVersion", project.version)
-    dependsOn(":zipline-api-validator:publishAllPublicationsToTestMavenRepository")
     dependsOn(":zipline-bytecode:publishAllPublicationsToTestMavenRepository")
-    dependsOn(":zipline-cli:publishAllPublicationsToTestMavenRepository")
     dependsOn(":zipline-gradle-plugin:publishAllPublicationsToTestMavenRepository")
     dependsOn(":zipline-kotlin-plugin:publishAllPublicationsToTestMavenRepository")
     dependsOn(":zipline-loader:publishJvmPublicationToTestMavenRepository")
