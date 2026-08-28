@@ -38,3 +38,25 @@ internal fun <T : Any> SerializersModule.requireContextual(
     ?: error("No contextual serializer for $kClass is registered")
   return result as KSerializer<T>
 }
+
+/**
+ * Experiment: a `@Contextual ByteArray` parameter, encoded as base64 rather than as a JSON array of
+ * numbers. This exists to prove the contextual hook reaches a `ByteArray` argument at all, which is
+ * what a real binary side-channel would need.
+ */
+@OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+internal object Base64ByteArraySerializer : KSerializer<ByteArray> {
+  override val descriptor =
+    kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
+      "app.cash.zipline.Base64ByteArray",
+      kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+    )
+
+  override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: ByteArray) {
+    encoder.encodeString(kotlin.io.encoding.Base64.encode(value))
+  }
+
+  override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): ByteArray {
+    return kotlin.io.encoding.Base64.decode(decoder.decodeString())
+  }
+}
