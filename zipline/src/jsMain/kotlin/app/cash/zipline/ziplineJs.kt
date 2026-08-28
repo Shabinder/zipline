@@ -47,9 +47,11 @@ actual class Zipline internal constructor(userSerializersModule: SerializersModu
       private val jsOutboundChannel: CallChannel
         get() = js("globalThis.app_cash_zipline_outboundChannel")
 
-      override fun call(callJson: String): String {
-        return jsOutboundChannel.call(callJson)
+      override fun call(callJson: String, buffers: Array<ByteArray>): String {
+        return jsOutboundChannel.call(callJson, buffers)
       }
+
+      override fun takeResultBuffers(): Array<ByteArray> = jsOutboundChannel.takeResultBuffers()
 
       override fun disconnect(instanceName: String): Boolean {
         return jsOutboundChannel.disconnect(instanceName)

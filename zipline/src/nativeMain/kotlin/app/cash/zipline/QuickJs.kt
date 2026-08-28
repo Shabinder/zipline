@@ -42,8 +42,18 @@ import app.cash.zipline.quickjs.JS_FreeRuntime
 import app.cash.zipline.quickjs.JS_FreeValue
 import app.cash.zipline.quickjs.JS_GetException
 import app.cash.zipline.quickjs.JS_GetGlobalObject
-import app.cash.zipline.quickjs.JS_GetPropertyStr
+import app.cash.zipline.quickjs.JS_TYPED_ARRAY_INT8
+import app.cash.zipline.quickjs.JsTakeResultBuffersFunction
+import app.cash.zipline.quickjs.JS_GetArrayBuffer
 import app.cash.zipline.quickjs.JS_GetPropertyUint32
+import app.cash.zipline.quickjs.JS_GetTypedArrayBuffer
+import app.cash.zipline.quickjs.JsUndefined
+import app.cash.zipline.quickjs.JS_NewArray
+import app.cash.zipline.quickjs.JS_NewInt32
+import app.cash.zipline.quickjs.JS_NewArrayBufferCopy
+import app.cash.zipline.quickjs.JS_NewTypedArray
+import app.cash.zipline.quickjs.JS_SetPropertyUint32
+import app.cash.zipline.quickjs.JS_GetPropertyStr
 import app.cash.zipline.quickjs.JS_GetRuntime
 import app.cash.zipline.quickjs.JS_GetRuntimeOpaque
 import app.cash.zipline.quickjs.JS_HasProperty
@@ -104,11 +114,17 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.StableRef
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.alloc
-import kotlinx.cinterop.asStableRef
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
+import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.usePinned
+import platform.posix.memcpy
+import platform.posix.size_tVar
+import kotlinx.cinterop.asStableRef
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.free
 import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.plus
 import kotlinx.cinterop.nativeHeap
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readBytes
@@ -117,7 +133,6 @@ import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.cinterop.utf8
 import kotlinx.cinterop.value
-import platform.posix.size_tVar
 
 @EngineApi
 actual class QuickJs private constructor(
@@ -360,8 +375,9 @@ actual class QuickJs private constructor(
       functionList = nativeHeap.allocArrayOf(
         JsCallFunction(staticCFunction(::outboundCall)),
         JsDisconnectFunction(staticCFunction(::outboundDisconnect)),
+        JsTakeResultBuffersFunction(staticCFunction(::outboundTakeResultBuffers)),
       )
-      JS_SetPropertyFunctionList(context, jsOutboundCallChannel, functionList, 2)
+      JS_SetPropertyFunctionList(context, jsOutboundCallChannel, functionList, 3)
     } finally {
       JS_FreeAtom(context, propertyName)
       JS_FreeValue(context, globalThis)
@@ -371,10 +387,15 @@ actual class QuickJs private constructor(
   }
 
   internal fun jsOutboundCall(argc: Int, argv: CArrayPointer<JSValue>): CValue<JSValue> {
-    assert(argc == 1)
+    assert(argc == 2)
     val arg0 = JsValueArrayToInstanceRef(argv, 0).toKotlinInstanceOrNull() as String
-    val result = outboundChannel!!.call(arg0)
+    val arg1 = JsValueArrayToInstanceRef(argv, 1).toKotlinByteArrayArray()
+    val result = outboundChannel!!.call(arg0, arg1)
     return JS_NewString(context, result.utf8)
+  }
+
+  internal fun jsOutboundTakeResultBuffers(): CValue<JSValue> {
+    return outboundChannel!!.takeResultBuffers().toJsInt8ArrayArray()
   }
 
   internal fun jsOutboundDisconnect(argc: Int, argv: CArrayPointer<JSValue>): CValue<JSValue> {
@@ -484,6 +505,93 @@ actual class QuickJs private constructor(
     throw QuickJsException(message, stack)
   }
 
+  /**
+   * Copies [this] into the engine as a JavaScript array of `Int8Array`, one `memcpy` per element.
+   *
+   * `JS_NewArrayBufferCopy` allocates and copies in C, so the engine owns what it collects and the
+   * Kotlin array can be freed the moment this returns. That single copy is the whole point: as
+   * text the same bytes cost a transcode, a 1.33-3.57x inflation, and a parse.
+   */
+  internal fun Array<ByteArray>.toJsInt8ArrayArray(): CValue<JSValue> {
+    val result = JS_NewArray(context)
+    for ((index, bytes) in withIndex()) {
+      val buffer = when {
+        bytes.isEmpty() -> JS_NewArrayBufferCopy(context, null, 0u)
+        else -> bytes.usePinned { pinned ->
+          JS_NewArrayBufferCopy(
+            context,
+            pinned.addressOf(0).reinterpret(),
+            bytes.size.convert(),
+          )
+        }
+      }
+      // Three arguments, not one: given an ArrayBuffer, QuickJS's typed-array constructor reads
+      // argv[1] as the byte offset and argv[2] as the length regardless of argc, so a shorter call
+      // reads uninitialised memory and yields a zero-length array.
+      val int8Array = memScoped {
+        val args = allocArrayOf(buffer, JS_NewInt32(context, 0), JsUndefined())
+        JS_NewTypedArray(context, 3, args, JS_TYPED_ARRAY_INT8)
+      }
+      JS_FreeValue(context, buffer)
+      JS_SetPropertyUint32(context, result, index.toUInt(), int8Array)
+    }
+    return result
+  }
+
+  /**
+   * Copies a JavaScript array of typed arrays back out, honouring each view's offset and length.
+   *
+   * A view into a larger buffer is normal - Kotlin/JS `ByteArray` is an `Int8Array` - so reading
+   * `.buffer` alone would hand back the wrong bytes. A detached buffer reports no data at all and
+   * is an error rather than a crash.
+   */
+  internal fun CValue<JSValue>.toKotlinByteArrayArray(): Array<ByteArray> {
+    val lengthValue = JS_GetPropertyStr(context, this, "length")
+    val length = lengthValue.toKotlinInstanceOrNull() as? Int ?: 0
+    JS_FreeValue(context, lengthValue)
+    if (length == 0) return emptyArray()
+
+    return Array(length) { index ->
+      val element = JS_GetPropertyUint32(context, this, index.toUInt())
+      try {
+        element.toKotlinByteArray()
+      } finally {
+        JS_FreeValue(context, element)
+      }
+    }
+  }
+
+  private fun CValue<JSValue>.toKotlinByteArray(): ByteArray = memScoped {
+    val byteOffset = alloc<size_tVar>()
+    val byteLength = alloc<size_tVar>()
+    val bytesPerElement = alloc<size_tVar>()
+    val buffer = JS_GetTypedArrayBuffer(
+      context,
+      this@toKotlinByteArray,
+      byteOffset.ptr,
+      byteLength.ptr,
+      bytesPerElement.ptr,
+    )
+    try {
+      val size = alloc<size_tVar>()
+      val data = JS_GetArrayBuffer(context, size.ptr, buffer)
+        ?: throw IllegalStateException("the guest handed back a detached ArrayBuffer")
+      val length = byteLength.value.toInt()
+      if (length == 0) return@memScoped ByteArray(0)
+      val result = ByteArray(length)
+      result.usePinned { pinned ->
+        memcpy(
+          pinned.addressOf(0),
+          data + byteOffset.value.toLong(),
+          length.convert(),
+        )
+      }
+      result
+    } finally {
+      JS_FreeValue(context, buffer)
+    }
+  }
+
   internal fun CValue<JSValue>.toKotlinInstanceOrNull(): Any? {
     return when (JsValueGetNormTag(this)) {
       JS_TAG_EXCEPTION -> throwJsException()
@@ -538,6 +646,22 @@ internal fun outboundCall(
   val quickJs = JS_GetRuntimeOpaque(JS_GetRuntime(context))!!.asStableRef<QuickJs>().get()
   return try {
     quickJs.jsOutboundCall(argc, argv)
+  } catch (t: Throwable) {
+    t.printStackTrace() // TODO throw to JS return null
+    throw t
+  }
+}
+
+@Suppress("UNUSED_PARAMETER") // API shape mandated by QuickJs.
+internal fun outboundTakeResultBuffers(
+  context: CPointer<JSContext>,
+  thisVal: CValue<JSValue>,
+  argc: Int,
+  argv: CArrayPointer<JSValue>,
+): CValue<JSValue> {
+  val quickJs = JS_GetRuntimeOpaque(JS_GetRuntime(context))!!.asStableRef<QuickJs>().get()
+  return try {
+    quickJs.jsOutboundTakeResultBuffers()
   } catch (t: Throwable) {
     t.printStackTrace() // TODO throw to JS return null
     throw t

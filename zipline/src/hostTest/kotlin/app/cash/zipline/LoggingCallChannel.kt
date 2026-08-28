@@ -23,10 +23,14 @@ class LoggingCallChannel : CallChannel {
   var disconnectThrow = false
   var disconnectResult = true
 
-  override fun call(callJson: String): String {
+  var resultBuffers: Array<ByteArray> = emptyArray()
+
+  override fun call(callJson: String, buffers: Array<ByteArray>): String {
     log += "call($callJson)"
     return callResult
   }
+
+  override fun takeResultBuffers(): Array<ByteArray> = resultBuffers
 
   override fun disconnect(instanceName: String): Boolean {
     log += "disconnect($instanceName)"

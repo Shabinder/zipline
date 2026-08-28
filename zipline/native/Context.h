@@ -53,6 +53,24 @@ public:
   JSValue toJsString(JNIEnv* env, jstring string) const;
   jstring toJavaString(JNIEnv* env, const JSValueConst& value) const;
 
+  /**
+   * Copies a Java byte[][] into the engine as a JavaScript array of Int8Array, one memcpy each.
+   *
+   * JS_NewArrayBufferCopy allocates and copies in C, so the engine owns what it collects and the
+   * JVM array can be released immediately. That single copy is the point: as text the same bytes
+   * cost a transcode, a 1.33-3.57x inflation, and a parse.
+   */
+  JSValue toJsInt8ArrayArray(JNIEnv* env, jobjectArray buffers) const;
+
+  /**
+   * Copies a JavaScript array of typed arrays back out, honouring each view's byteOffset and
+   * byteLength.
+   *
+   * Reading `.buffer` alone would be wrong: Kotlin/JS ByteArray *is* an Int8Array, and one may be
+   * a view into a larger buffer. A detached buffer yields no data and raises rather than crashes.
+   */
+  jobjectArray toJavaByteArrayArray(JNIEnv* env, const JSValueConst& value) const;
+
   JavaVM* javaVm;
   const jint jniVersion;
   JSRuntime *jsRuntime;
@@ -61,6 +79,7 @@ public:
   JSClassID outboundCallChannelClassId;
   JSAtom lengthAtom;
   JSAtom callAtom;
+  JSAtom takeResultBuffersAtom;
   JSAtom disconnectAtom;
   jclass booleanClass;
   jclass integerClass;

@@ -2,7 +2,6 @@ package bench
 
 import app.cash.zipline.Zipline
 import app.cash.zipline.testing.BinaryEchoService
-import app.cash.zipline.testing.ContextualBinaryEchoService
 import app.cash.zipline.testing.loadTestingJs
 import java.util.Base64
 import kotlin.random.Random
@@ -21,10 +20,9 @@ import kotlinx.serialization.json.Json
  * trip as the measurement to repeat. This is that: a real service call, so the number includes the
  * host-side encode, Zipline's JSON envelope, the guest's parse, and the same again on the way back.
  *
- * Two lanes, both of which exist today: a `ByteArray` parameter, which kotlinx.serialization
- * renders as a JSON array of numbers, and a base64 `String`, which is the best a caller can do
- * without changing Zipline's codec. `ping` prices the envelope with no payload, so payload cost can
- * be separated from call cost.
+ * Two lanes: a `ByteArray` parameter, which now travels beside the JSON as bytes, and a base64
+ * `String`, which is what the same payload costs as text and is kept as the before-picture. `ping`
+ * prices the envelope with no payload, so payload cost can be separated from call cost.
  */
 class BinaryBridgeBenchmark {
   private val dispatcher = StandardTestDispatcher()
@@ -34,8 +32,6 @@ class BinaryBridgeBenchmark {
     zipline.loadTestingJs()
     zipline.quickJs.evaluate("testing.app.cash.zipline.testing.prepareBinaryEchoService()")
     val service = zipline.take<BinaryEchoService>("binaryEchoService")
-    val contextual =
-      zipline.take<ContextualBinaryEchoService>("contextualBinaryEchoService")
 
     val ping = measure { service.ping() }
     println("BENCH|ping (envelope only): ${ping.report()}")
@@ -45,8 +41,6 @@ class BinaryBridgeBenchmark {
       val base64 = Base64.getEncoder().encodeToString(bytes)
 
       val sinkBytes = measure { assertEquals(size, service.sinkBytes(bytes)) }
-      val sinkCtx = measure { assertEquals(size, contextual.sink(bytes)) }
-      val echoCtx = measure { assertEquals(size, contextual.echo(bytes).size) }
       val echoBytes = measure { assertEquals(size, service.echoBytes(bytes).size) }
       // The host-side encode and decode are inside the timing: they are part of the cost.
       val sinkB64 = measure {
@@ -62,8 +56,6 @@ class BinaryBridgeBenchmark {
       val memcpy = measure { bytes.copyOf() }
 
       println("BENCH|${size.label()} sinkBytes:  ${sinkBytes.report()}")
-      println("BENCH|${size.label()} sinkCtx:    ${sinkCtx.report()}")
-      println("BENCH|${size.label()} echoCtx:    ${echoCtx.report()}")
       println("BENCH|${size.label()} echoBytes:  ${echoBytes.report()}")
       println("BENCH|${size.label()} sinkBase64: ${sinkB64.report()}")
       println("BENCH|${size.label()} echoBase64: ${echoB64.report()}")

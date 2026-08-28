@@ -18,12 +18,14 @@ package app.cash.zipline
 import app.cash.zipline.internal.bridge.FlowSerializer
 import app.cash.zipline.internal.bridge.FlowZiplineService
 import app.cash.zipline.internal.bridge.ReturningZiplineFunction
+import app.cash.zipline.internal.bridge.ZiplineBufferSerializer
 import app.cash.zipline.internal.bridge.SuspendCallback
 import app.cash.zipline.internal.bridge.SuspendingZiplineFunction
 import app.cash.zipline.internal.bridge.ZiplineServiceAdapter
 import app.cash.zipline.testing.EchoService
 import app.cash.zipline.testing.kotlinBuiltInSerializersModule
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -93,10 +95,9 @@ class NewSerializersTest {
     val function = onlyZiplineFunction(
       serviceSerializer = ziplineServiceSerializer<ByteArrayParameter>(),
     ) as ReturningZiplineFunction
-    assertEquals(
-      ByteArraySerializer(),
-      function.argsListSerializer.serializers[0],
-    )
+    // A ByteArray argument resolves to the buffer serializer, not kotlinx's built-in one: the
+    // payload travels beside the JSON as bytes. See Docs/RESEARCH/zipline-binary-bridge.md.
+    assertTrue(function.argsListSerializer.serializers[0] is ZiplineBufferSerializer)
   }
 
   interface ByteArrayParameter : ZiplineService {
@@ -108,10 +109,7 @@ class NewSerializersTest {
     val function = onlyZiplineFunction(
       serviceSerializer = ziplineServiceSerializer<ByteArrayReturnValue>(),
     ) as ReturningZiplineFunction
-    assertEquals(
-      ByteArraySerializer(),
-      function.resultSerializer.successSerializer,
-    )
+    assertTrue(function.resultSerializer.successSerializer is ZiplineBufferSerializer)
   }
 
   interface ByteArrayReturnValue : ZiplineService {
@@ -123,9 +121,11 @@ class NewSerializersTest {
     val function = onlyZiplineFunction(
       serviceSerializer = ziplineServiceSerializer<ByteArraySuspendResult>(),
     ) as SuspendingZiplineFunction<*>
+    // The adapter has no equals(), and the ByteArray inside it now resolves through the
+    // endpoint's module, so compare what it is rather than which instance it is.
     assertEquals(
-      ziplineServiceSerializer<SuspendCallback<ByteArray>>(),
-      function.suspendCallbackSerializer,
+      ziplineServiceSerializer<SuspendCallback<ByteArray>>().toString(),
+      function.suspendCallbackSerializer.toString(),
     )
   }
 

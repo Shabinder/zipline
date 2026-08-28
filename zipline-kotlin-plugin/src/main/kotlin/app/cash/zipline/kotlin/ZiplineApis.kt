@@ -64,6 +64,14 @@ internal class ZiplineApis private constructor(
     private val flowFqPackage = FqPackageName("kotlinx.coroutines.flow")
     val flowClassId = flowFqPackage.classId("Flow")
     val stateFlowClassId = flowFqPackage.classId("StateFlow")
+
+    /**
+     * `ByteArray` is resolved through the endpoint's `SerializersModule` like `Flow` is, so that
+     * binary arguments reach `ZiplineBufferSerializer` and cross the bridge as bytes rather than
+     * as a JSON array of numbers. Without this, kotlinx's built-in serializer wins and a 256 KB
+     * payload costs 1,227 ms - see `Docs/RESEARCH/zipline-binary-bridge.md`.
+     */
+    val byteArrayClassId = FqPackageName("kotlin").classId("ByteArray")
   }
 
   val any: IrClassSymbol

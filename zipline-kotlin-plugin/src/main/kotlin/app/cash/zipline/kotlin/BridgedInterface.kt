@@ -222,7 +222,7 @@ internal class BridgedInterface(
         )
       }
 
-      hasTypeParameter || contextual || type.isFlow || type.isStateFlow -> {
+      hasTypeParameter || contextual || type.isFlow || type.isStateFlow || type.isByteArray -> {
         // serializersModule.requireContextual<T>(root KClass, recurse on type args)
         val contextualSerializerExpression = irCall(
           callee = ziplineApis.requireContextual,
@@ -262,6 +262,16 @@ internal class BridgedInterface(
 
   private val IrType.isFlow
     get() = getClass()?.classId == ZiplineApis.flowClassId
+
+  /**
+   * Routing `ByteArray` here rather than to kotlinx's built-in serializer is what makes binary
+   * payloads travel beside the JSON. It also dissolves a trap: the required types are collected
+   * into a `Set<IrType>`, so a plain and a `@Contextual ByteArray` in one interface used to
+   * collapse into one entry and share whichever serializer was resolved first. Now both resolve
+   * the same way and there is nothing to collapse.
+   */
+  private val IrType.isByteArray
+    get() = getClass()?.classId == ZiplineApis.byteArrayClassId
 
   private val IrType.isStateFlow
     get() = getClass()?.classId == ZiplineApis.stateFlowClassId

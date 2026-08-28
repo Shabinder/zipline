@@ -24,9 +24,11 @@ OutboundCallChannel::OutboundCallChannel(Context* c, JNIEnv* env, const char* na
       name(name),
       javaThis(env->NewGlobalRef(object)),
       callChannelClass(static_cast<jclass>(env->NewGlobalRef(env->FindClass("app/cash/zipline/internal/bridge/CallChannel")))),
-      callMethod(env->GetMethodID(callChannelClass, "call", "(Ljava/lang/String;)Ljava/lang/String;")),
+      callMethod(env->GetMethodID(callChannelClass, "call", "(Ljava/lang/String;[[B)Ljava/lang/String;")),
+      takeResultBuffersMethod(env->GetMethodID(callChannelClass, "takeResultBuffers", "()[[B")),
       disconnectMethod(env->GetMethodID(callChannelClass, "disconnect", "(Ljava/lang/String;)Z")) {
-  functions.push_back(JS_CFUNC_DEF("call", 1, OutboundCallChannel::call));
+  functions.push_back(JS_CFUNC_DEF("call", 2, OutboundCallChannel::call));
+  functions.push_back(JS_CFUNC_DEF("takeResultBuffers", 0, OutboundCallChannel::takeResultBuffers));
   functions.push_back(JS_CFUNC_DEF("disconnect", 1, OutboundCallChannel::disconnect));
   if (!env->ExceptionCheck()) {
     JS_SetPropertyFunctionList(context->jsContext, jsOutboundCallChannel, functions.data(), functions.size());
@@ -49,18 +51,51 @@ OutboundCallChannel::call(JSContext* ctx, JSValueConst this_val, int argc, JSVal
     return JS_ThrowReferenceError(ctx, "Not an OutboundCallChannel");
   }
 
-  assert(argc == 1);
+  assert(argc == 2);
 
   auto env = context->getEnv();
-  env->PushLocalFrame(argc + 1);
-  jvalue args[1];
+  env->PushLocalFrame(argc + 2);
+  jvalue args[2];
   args[0].l = context->toJavaString(env, argv[0]);
+  args[1].l = context->toJavaByteArrayArray(env, argv[1]);
+
+  JSValue jsResult;
+  if (env->ExceptionCheck() || args[1].l == nullptr) {
+    jsResult = context->throwJavaExceptionFromJs(env);
+    env->PopLocalFrame(nullptr);
+    return jsResult;
+  }
 
   jstring javaResult = static_cast<jstring>(env->CallObjectMethodA(
       channel->javaThis, channel->callMethod, args));
-  JSValue jsResult;
   if (!env->ExceptionCheck()) {
     jsResult = context->toJsString(env, javaResult);
+  } else {
+    jsResult = context->throwJavaExceptionFromJs(env);
+  }
+  env->PopLocalFrame(nullptr);
+  return jsResult;
+}
+
+JSValue
+OutboundCallChannel::takeResultBuffers(JSContext* ctx, JSValueConst this_val, int argc,
+                                       JSValueConst* argv) {
+  auto context = reinterpret_cast<const Context*>(JS_GetRuntimeOpaque(JS_GetRuntime(ctx)));
+  if (!context) {
+    return JS_ThrowReferenceError(ctx, "QuickJs closed");
+  }
+  auto channel = reinterpret_cast<const OutboundCallChannel*>(JS_GetOpaque(this_val, context->outboundCallChannelClassId));
+  if (!channel) {
+    return JS_ThrowReferenceError(ctx, "Not an OutboundCallChannel");
+  }
+
+  auto env = context->getEnv();
+  env->PushLocalFrame(2);
+  jobjectArray javaResult = static_cast<jobjectArray>(env->CallObjectMethod(
+      channel->javaThis, channel->takeResultBuffersMethod));
+  JSValue jsResult;
+  if (!env->ExceptionCheck()) {
+    jsResult = context->toJsInt8ArrayArray(env, javaResult);
   } else {
     jsResult = context->throwJavaExceptionFromJs(env);
   }

@@ -30,6 +30,7 @@ public:
   ~OutboundCallChannel();
 
   static JSValue call(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+  static JSValue takeResultBuffers(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
   static JSValue disconnect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
 private:
@@ -38,6 +39,7 @@ private:
   jobject javaThis;
   jclass callChannelClass;
   jmethodID callMethod;
+  jmethodID takeResultBuffersMethod;
   jmethodID disconnectMethod;
   std::vector<JSCFunctionListEntry> functions;
 };
