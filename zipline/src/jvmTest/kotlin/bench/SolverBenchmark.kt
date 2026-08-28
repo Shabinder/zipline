@@ -3,69 +3,89 @@ package bench
 import app.cash.zipline.QuickJs
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
- * G8 of the QuickJS upgrade: run the real yt-dlp-ejs whole-player rewrite inside *Zipline's*
- * QuickJS rather than the qjs CLI, so the 132,596 ms baseline and the new figure are measured in
- * the same embedding. Skips rather than fails when the inputs are absent.
+ * Runs yt-dlp-ejs's whole-player rewrite inside Zipline's QuickJS against a real YouTube player.
+ *
+ * This is the workload that motivated upgrading the engine, and it is the one that could not run
+ * on the old one: QuickJS 2021-03-27 spent about 156 seconds on it and then threw
+ * "unconsistent stack size: 2 3 (pc=2895)". On 2026-06-04 it completes in a few seconds and
+ * returns the right answer, so it is asserted rather than merely measured.
+ *
+ * Skips when its inputs are absent, since they are fetched by hand rather than checked in.
  */
 class SolverBenchmark {
-  private fun quote(s: String): String {
-    val sb = StringBuilder(s.length + 64)
-    sb.append('"')
-    for (c in s) {
-      when (c) {
-        '\\' -> sb.append("\\\\")
-        '"' -> sb.append("\\\"")
-        '\n' -> sb.append("\\n")
-        '\r' -> sb.append("\\r")
-        '\t' -> sb.append("\\t")
-        else -> if (c < ' ' || c == '\u2028' || c == '\u2029') {
-          sb.append("\\u").append(c.code.toString(16).padStart(4, '0'))
-        } else sb.append(c)
-      }
+  @Test fun wholePlayerRewrite() {
+    val assets = File(SOLVER_ASSETS)
+    val player = File(PLAYER)
+    if (!assets.isDirectory || !player.isFile) {
+      println("BENCH|skipped - solver assets or player missing")
+      return
     }
-    return sb.append('"').toString()
+
+    QuickJs.create().use { quickJs ->
+      val loadStart = System.currentTimeMillis()
+      quickJs.evaluate(File(assets, "quickjs-polyfills.js").readText(), "quickjs-polyfills.js")
+      quickJs.evaluate(File(assets, "yt.solver.lib.min.js").readText(), "yt.solver.lib.min.js")
+      // The browser page gets these as globals; the bundle exposes them on `lib`.
+      quickJs.evaluate("var meriyah = lib.meriyah, astring = lib.astring;", "glue.js")
+      quickJs.evaluate(File(assets, "yt.solver.core.min.js").readText(), "yt.solver.core.min.js")
+      println("BENCH|solver load: ${System.currentTimeMillis() - loadStart}ms")
+
+      val source = player.readText()
+      quickJs.evaluate("globalThis.__player = ${source.toJsStringLiteral()};", "player.js")
+
+      val solveStart = System.currentTimeMillis()
+      val json = quickJs.evaluate(
+        """
+        var result = jsc({
+          type: 'player', player: globalThis.__player, output_preprocessed: true,
+          requests: [
+            { type: 'sig', challenges: ['abcdefghijklmnop'] },
+            { type: 'n', challenges: ['xyz123'] }
+          ]
+        });
+        JSON.stringify({
+          sig: result.responses[0].data['abcdefghijklmnop'],
+          n: result.responses[1].data['xyz123'],
+          preprocessedLength: (result.preprocessed_player || '').length
+        })
+        """.trimIndent(),
+        "solve.js",
+      ) as String
+      println("BENCH|whole-player rewrite: ${System.currentTimeMillis() - solveStart}ms")
+      println("BENCH|result: $json")
+
+      // The signature transform is a reversal, so this is checkable without the player.
+      assertTrue(""""sig":"ponmlkjihgfedcba"""" in json, "unexpected signature: $json")
+      assertTrue(""""n":"""" in json, "no throttling parameter: $json")
+      assertTrue(""""preprocessedLength":3""" in json, "no preprocessed player: $json")
+    }
   }
 
-  @Test fun wholePlayerRewrite() {
-    val assets = File("/Users/admin/SoundBound/soundbound-extensions/extensions-src/youtube/src/commonMain/resources/ytjs")
-    val player = File("/Users/admin/Tools/po-quickjs/base.js")
-    if (!assets.isDirectory || !player.isFile) { println("BENCH|skipped - inputs missing"); return }
-
-    QuickJs.create().use { qjs ->
-      val t0 = System.currentTimeMillis()
-      qjs.evaluate(File(assets, "quickjs-polyfills.js").readText(), "quickjs-polyfills.js")
-      qjs.evaluate(File(assets, "yt.solver.lib.min.js").readText(), "yt.solver.lib.min.js")
-      qjs.evaluate("var meriyah = lib.meriyah, astring = lib.astring;", "glue.js")
-      qjs.evaluate(File(assets, "yt.solver.core.min.js").readText(), "yt.solver.core.min.js")
-      println("BENCH|solver load: ${System.currentTimeMillis() - t0}ms")
-
-      val src = player.readText()
-      val tInj = System.currentTimeMillis()
-      qjs.evaluate("globalThis.__player = " + quote(src) + ";", "player.js")
-      println("BENCH|player injected (${src.length} chars): ${System.currentTimeMillis() - tInj}ms")
-
-      // The whole-player rewrite does NOT work inside Zipline's QuickJS - it throws
-      // "unconsistent stack size" on BOTH the 2021 and 2026 engines (pre-existing, not a
-      // regression). Recorded rather than asserted: this exists to measure, and the failure
-      // itself is the measurement. On 2021 it grinds for ~156s before throwing; on 2026 it
-      // throws in about a second.
-      val t1 = System.currentTimeMillis()
-      val out = try { qjs.evaluate(
-        """
-        var res = jsc({
-          type: 'player', player: globalThis.__player, output_preprocessed: true,
-          requests: [ { type: 'sig', challenges: ['abcdefghijklmnop'] },
-                      { type: 'n', challenges: ['xyz123'] } ]
-        });
-        JSON.stringify({ sig: res.responses[0].data['abcdefghijklmnop'],
-                         n: res.responses[1].data['xyz123'],
-                         pre: (res.preprocessed_player || '').length })
-        """.trimIndent(), "bench.js",
-      ) } catch (e: Exception) { "THREW: " + e.message }
-      println("BENCH|WHOLE-PLAYER REWRITE: ${System.currentTimeMillis() - t1}ms")
-      println("BENCH|result: $out")
+  /** Renders [this] as a JavaScript string literal, so a 2.5 MB player can be handed to eval. */
+  private fun String.toJsStringLiteral(): String {
+    val result = StringBuilder(length + 64).append('"')
+    for (c in this) {
+      when {
+        c == '\\' -> result.append("\\\\")
+        c == '"' -> result.append("\\\"")
+        c == '\n' -> result.append("\\n")
+        c == '\r' -> result.append("\\r")
+        c == '\t' -> result.append("\\t")
+        c < ' ' || c == ' ' || c == ' ' ->
+          result.append("\\u").append(c.code.toString(16).padStart(4, '0'))
+        else -> result.append(c)
+      }
     }
+    return result.append('"').toString()
+  }
+
+  private companion object {
+    const val SOLVER_ASSETS =
+      "/Users/admin/SoundBound/soundbound-extensions/extensions-src/youtube/src/commonMain/resources/ytjs"
+    const val PLAYER = "/Users/admin/Tools/po-quickjs/base.js"
   }
 }
