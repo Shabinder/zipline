@@ -58,6 +58,8 @@ data class JsFunctionBytecode(
   val varCount: Int,
   val definedArgCount: Int,
   val stackSize: Int,
+  /** Number of variable references; added to the record in QuickJS 2026-06-04. */
+  val varRefCount: Int,
   val locals: List<JsVarDef>,
   val closureVars: List<JsClosureVar>,
   val bytecode: ByteString,
@@ -74,25 +76,32 @@ data class JsFunctionBytecode(
   val superAllowed get() = flags.bit(8)
   val argumentsAllowed get() = flags.bit(9)
   val hasDebug get() = flags.bit(10)
-  val backtraceBarrier get() = flags.bit(11)
+  /** Called `backtrace_barrier` before QuickJS 2026-06-04; the bit position is unchanged. */
+  val isDirectOrIndirectEval get() = flags.bit(11)
 }
 
 data class JsVarDef(
   val name: String,
-  val scopeLevel: Int,
   val scopeNext: Int,
+  /** Index into the function's variable references; added in QuickJS 2026-06-04. */
+  val varRefIndex: Int,
   // JsVarKindEnum
   val kind: Int,
   val isConst: Boolean,
   val isLexical: Boolean,
   val isCaptured: Boolean,
+  /** Added in QuickJS 2026-06-04, which also dropped the separate `scopeLevel` field. */
+  val hasScope: Boolean,
 )
 
 data class JsClosureVar(
   val name: String,
   val varIndex: Int,
-  val isLocal: Boolean,
-  val isArg: Boolean,
+  /**
+   * Replaced the separate `isLocal` and `isArg` booleans in QuickJS 2026-06-04, which also widened
+   * the flags field from one byte to two. See `JSClosureTypeEnum` in `quickjs.c`.
+   */
+  val closureType: Int,
   val isConst: Boolean,
   val isLexical: Boolean,
   // JsVarKindEnum
@@ -101,6 +110,12 @@ data class JsClosureVar(
 
 data class Debug(
   val fileName: String,
-  val lineNumber: Int,
+  /**
+   * The pc2line table. Since QuickJS 2026-06-04 this begins with the function's own line and
+   * column, which used to be a separate `lineNumber` field on this record, and each entry carries
+   * a column delta as well as a line delta. See [LineNumberReader] and [LineNumberWriter].
+   */
   val pc2Line: ByteString,
+  /** Original source text, retained by QuickJS 2026-06-04 for `Function.prototype.toString`. */
+  val source: ByteString,
 )

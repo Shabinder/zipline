@@ -96,6 +96,7 @@ class JsObjectReader(
     val varCount = source.readLeb128()
     val definedArgCount = source.readLeb128()
     val stackSize = source.readLeb128()
+    val varRefCount = source.readLeb128()
     val closureVarCount = source.readLeb128()
     val constantPoolCount = source.readLeb128()
     val bytecodeLength = source.readLeb128()
@@ -130,6 +131,7 @@ class JsObjectReader(
       varCount = varCount,
       definedArgCount = definedArgCount,
       stackSize = stackSize,
+      varRefCount = varRefCount,
       locals = locals,
       closureVars = closureVars,
       bytecode = bytecode,
@@ -154,44 +156,46 @@ class JsObjectReader(
 
   private fun readVarDef(): JsVarDef {
     val name = readAtomString()
-    val scopeLevel = source.readLeb128()
     val scopeNext = source.readLeb128() - 1
+    val varRefIndex = source.readLeb128()
     val flags = source.readByte().toInt()
     return JsVarDef(
       name = name.string,
-      scopeLevel = scopeLevel,
       scopeNext = scopeNext,
+      varRefIndex = varRefIndex,
       kind = flags.bits(bit = 0, bitCount = 4),
       isConst = flags.bit(4),
       isLexical = flags.bit(5),
       isCaptured = flags.bit(6),
+      hasScope = flags.bit(7),
     )
   }
 
   private fun readClosureVar(): JsClosureVar {
     val name = readAtomString()
     val varIndex = source.readLeb128()
-    val flags = source.readByte().toInt()
+    // Two bytes since QuickJS 2026-06-04; one byte before that.
+    val flags = source.readShortLe().toInt() and 0xffff
     return JsClosureVar(
       name = name.string,
       varIndex = varIndex,
-      isLocal = flags.bit(0),
-      isArg = flags.bit(1),
-      isConst = flags.bit(2),
-      isLexical = flags.bit(3),
-      kind = flags.bits(bit = 4, bitCount = 4),
+      closureType = flags.bits(bit = 0, bitCount = 3),
+      isConst = flags.bit(3),
+      isLexical = flags.bit(4),
+      kind = flags.bits(bit = 5, bitCount = 4),
     )
   }
 
   private fun readDebug(): Debug {
     val fileName = readAtomString()
-    val lineNumber = source.readLeb128()
     val pc2lineLength = source.readLeb128()
     val pc2line = source.readByteString(pc2lineLength.toLong())
+    val sourceLength = source.readLeb128()
+    val sourceText = source.readByteString(sourceLength.toLong())
     return Debug(
       fileName = fileName.string,
-      lineNumber = lineNumber,
       pc2Line = pc2line,
+      source = sourceText,
     )
   }
 }

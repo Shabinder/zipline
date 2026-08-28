@@ -19,18 +19,39 @@ import okio.BufferedSink
 import okio.BufferedSource
 import okio.Closeable
 
-/** Decode the pc2line table. */
+/**
+ * Decode the pc2line table.
+ *
+ * Since QuickJS 2026-06-04 the table opens with the function's own line and column, and every
+ * entry carries a column delta after the line delta. Before that the starting line lived in a
+ * separate field on the debug record and columns were not tracked at all.
+ */
 class LineNumberReader(
-  functionLineNumber: Int,
   private val source: BufferedSource,
 ) : Closeable by source {
   var pc: Int = 0
-  var line: Int = functionLineNumber
+    private set
+
+  /** Line of the current instruction, or of the function itself before the first [next]. */
+  var line: Int = 0
+    private set
+
+  /** Column of the current instruction, or of the function itself before the first [next]. */
+  var column: Int = 0
+    private set
+
+  init {
+    if (!source.exhausted()) {
+      // Both are stored biased by one; QuickJS's own find_line_num() adds it back.
+      line = source.readLeb128() + 1
+      column = source.readLeb128() + 1
+    }
+  }
 
   fun next(): Boolean {
     if (source.exhausted()) return false
 
-    val op = source.readByte().toInt()
+    val op = source.readByte().toInt() and 0xff
     val diffPc: Int
     val diffLine: Int
     if (op != 0) {
@@ -43,26 +64,41 @@ class LineNumberReader(
     }
     pc += diffPc
     line += diffLine
+    column += source.readSleb128()
 
     return true
   }
 }
 
-/** Encode a pc2line table. */
+/**
+ * Encode a pc2line table.
+ *
+ * The function's own line and column are written first, as QuickJS 2026-06-04 expects; each
+ * subsequent entry carries a column delta after the line delta.
+ */
 class LineNumberWriter(
   functionLineNumber: Int,
+  functionColumnNumber: Int,
   private val sink: BufferedSink,
 ) : Closeable by sink {
   private var lastPc = 0
   private var lastLine = functionLineNumber
+  private var lastColumn = functionColumnNumber
 
-  fun next(pc: Int, line: Int) {
+  init {
+    // Stored biased by one, to match QuickJS. See LineNumberReader.
+    sink.writeLeb128(functionLineNumber - 1)
+    sink.writeLeb128(functionColumnNumber - 1)
+  }
+
+  fun next(pc: Int, line: Int, column: Int) {
     if (line < 0) return // Drop negative line numbers.
 
     val diffPc = pc - lastPc
     val diffLine = line - lastLine
+    val diffColumn = column - lastColumn
 
-    if (diffLine == 0) return // Nothing to do.
+    if (diffLine == 0 && diffColumn == 0) return // Nothing to do.
     if (diffPc < 0) return // PC may only advance.
 
     val linePart = diffLine - PC2LINE_BASE
@@ -74,9 +110,11 @@ class LineNumberWriter(
       sink.writeLeb128(diffPc)
       sink.writeSleb128(diffLine)
     }
+    sink.writeSleb128(diffColumn)
 
     lastPc = pc
     lastLine = line
+    lastColumn = column
   }
 }
 

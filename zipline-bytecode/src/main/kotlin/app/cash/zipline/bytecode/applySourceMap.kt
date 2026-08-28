@@ -69,14 +69,10 @@ private class SourceMapBytecodeRewriter(
   fun Debug.jsToKt(): Debug {
     val ktPc2LineBuffer = Buffer()
 
-    val jsReader = LineNumberReader(
-      functionLineNumber = lineNumber,
-      source = Buffer().write(pc2Line),
-    )
+    val jsReader = LineNumberReader(source = Buffer().write(pc2Line))
 
     var ktFileName: String? = null
-    var functionKtLineNumber: Int = -1
-    lateinit var ktWriter: LineNumberWriter
+    var ktWriter: LineNumberWriter? = null
     while (jsReader.next()) {
       val segment = sourceMap.find(jsReader.line)
       val instructionKtLineNumber = segment?.sourceLine?.toInt() ?: jsReader.line
@@ -84,21 +80,28 @@ private class SourceMapBytecodeRewriter(
       // If we haven't initialized declaration-level data, do that now. We'd prefer to map from the
       // source declaration line number, but we can't because that information isn't in the source
       // map. (It maps instructions, not declarations).
-      if (ktFileName == null) {
+      if (ktWriter == null) {
         ktFileName = segment?.source?.also {
           atoms.add(it)
         }
-        functionKtLineNumber = instructionKtLineNumber
-        ktWriter = LineNumberWriter(functionKtLineNumber, ktPc2LineBuffer)
+        // The writer emits the function's own line and column as the pc2line header, so it can
+        // only be created once the first mapped instruction is known. Columns are not remapped:
+        // the source map's column refers to the generated JavaScript, not to the Kotlin line we
+        // substitute, so the original column is carried through unchanged.
+        ktWriter = LineNumberWriter(
+          functionLineNumber = instructionKtLineNumber,
+          functionColumnNumber = jsReader.column,
+          sink = ktPc2LineBuffer,
+        )
       }
 
-      ktWriter.next(jsReader.pc, instructionKtLineNumber)
+      ktWriter.next(jsReader.pc, instructionKtLineNumber, jsReader.column)
     }
 
     return Debug(
       fileName = ktFileName ?: fileName,
-      lineNumber = functionKtLineNumber,
       pc2Line = ktPc2LineBuffer.readByteString(),
+      source = source,
     )
   }
 }

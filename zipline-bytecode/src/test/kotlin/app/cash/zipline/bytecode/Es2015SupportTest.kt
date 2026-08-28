@@ -72,7 +72,7 @@ class Es2015SupportTest {
       |	at JavaScript.goBoom2(demo.js:15)
       |	at JavaScript.goBoom3(demo.js:11)
       |	at JavaScript.sayHello(demo.js:7)
-      |	at JavaScript.<eval>(?)
+      |	at JavaScript.<eval>(?:1)
       """.trimMargin(),
     )
   }
