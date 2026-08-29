@@ -24,8 +24,6 @@ import kotlinx.serialization.json.Json
  * `String`, which is what the same payload costs as text and is kept as the before-picture. `ping`
  * prices the envelope with no payload, so payload cost can be separated from call cost.
  */
-@org.junit.Ignore("Measurement, not a check: the 1 MB text lanes cost seconds per run. " +
-  "Run explicitly with --tests 'bench.BinaryBridgeBenchmark'.")
 class BinaryBridgeBenchmark {
   private val dispatcher = StandardTestDispatcher()
   private val zipline = Zipline.create(dispatcher)

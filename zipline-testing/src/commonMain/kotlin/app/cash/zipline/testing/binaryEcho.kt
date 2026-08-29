@@ -54,6 +54,13 @@ interface BinaryEchoService : ZiplineService {
    */
   fun sinkTextAsBytes(payload: ByteArray): Int
 
+  /**
+   * The wire form a `ByteArray` used to take: kotlinx renders a list of numbers as a JSON array,
+   * which is what the built-in `ByteArraySerializer` produced before the binary path existed. Kept
+   * so the before/after can be measured side by side instead of across code versions.
+   */
+  fun sinkByteList(payload: List<Byte>): Int
+
   /** Several buffers in one call, to prove the indices line up. */
   fun concat(first: ByteArray, second: ByteArray, third: ByteArray): ByteArray
 

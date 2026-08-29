@@ -38,6 +38,8 @@ class JsBinaryEchoService : BinaryEchoService {
 
   override fun sinkTextAsBytes(payload: ByteArray) = payload.decodeToString().length
 
+  override fun sinkByteList(payload: List<Byte>) = payload.size
+
   override fun concat(first: ByteArray, second: ByteArray, third: ByteArray) = first + second + third
 
   override fun sinkNullable(payload: ByteArray?) = payload?.size ?: -1

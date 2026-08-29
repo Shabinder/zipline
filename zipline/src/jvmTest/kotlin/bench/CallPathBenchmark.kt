@@ -4,6 +4,7 @@ import app.cash.zipline.Zipline
 import app.cash.zipline.testing.BinaryEchoService
 import app.cash.zipline.testing.loadTestingJs
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.minutes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -25,12 +26,11 @@ import kotlinx.coroutines.test.runTest
  * 1.1-1.3x, a wash at 16 KB, and cost the guest's EventListener its view of the encoded call,
  * since there is no longer a string to report. Not worth two code paths.
  */
-@org.junit.Ignore("Measurement, not a check. Run explicitly with --tests 'bench.CallPathBenchmark'.")
 class CallPathBenchmark {
   private val dispatcher = StandardTestDispatcher()
   private val zipline = Zipline.create(dispatcher)
 
-  @Test fun callPaths(): Unit = runTest(dispatcher) {
+  @Test fun callPaths(): Unit = runTest(dispatcher, timeout = 30.minutes) {
     zipline.loadTestingJs()
     zipline.quickJs.evaluate("testing.app.cash.zipline.testing.prepareBinaryEchoService()")
     val service = zipline.take<BinaryEchoService>("binaryEchoService")
@@ -40,27 +40,40 @@ class CallPathBenchmark {
       val bytes = Random(size).nextBytes(size)
 
       // Alternate, so drift in the machine hits both lanes equally.
+      val byteList = bytes.toList()
+
+      // The old lane gets far fewer iterations, because it is far slower: at 64 KB it costs over
+      // 100 ms a call, so matching the fast lanes' count would take minutes per size.
       val stringPath = LongArray(RUNS)
       val binary = LongArray(RUNS)
+      val jsonArray = LongArray(SLOW_RUNS)
       repeat(WARMUPS) {
         service.sinkString(text)
         service.sinkBytes(bytes)
       }
+      repeat(SLOW_WARMUPS) { service.sinkByteList(byteList) }
+
       for (i in 0 until RUNS) {
         var start = System.nanoTime()
         assertEquals(size, service.sinkString(text))
-        stringPath[i] = (System.nanoTime() - start) / 1_000
+        stringPath[i] = System.nanoTime() - start
 
         start = System.nanoTime()
         assertEquals(size, service.sinkBytes(bytes))
-        binary[i] = (System.nanoTime() - start) / 1_000
+        binary[i] = System.nanoTime() - start
+      }
+      for (i in 0 until SLOW_RUNS) {
+        val start = System.nanoTime()
+        assertEquals(size, service.sinkByteList(byteList))
+        jsonArray[i] = System.nanoTime() - start
       }
 
-      println("CALLPATH|${size.label()} text:  ${stringPath.report()}")
-      println("CALLPATH|${size.label()} bytes: ${binary.report()}")
+      println("CALLPATH|${size.label()} json array of numbers (old): ${jsonArray.report()}")
+      println("CALLPATH|${size.label()} string:                      ${stringPath.report()}")
+      println("CALLPATH|${size.label()} bytes  (new):                 ${binary.report()}")
       println(
-        "CALLPATH|${size.label()} bytes are " +
-          "${"%.1f".format(stringPath.median() / binary.median())}x faster than text",
+        "CALLPATH|${size.label()} bytes vs old ${"%.1f".format(jsonArray.median() / binary.median())}x, " +
+          "vs string ${"%.1f".format(stringPath.median() / binary.median())}x",
       )
     }
 
@@ -71,7 +84,8 @@ class CallPathBenchmark {
 
   private fun LongArray.report(): String {
     val s = sorted()
-    return " median ${s[size / 2]}us, min ${s.first()}us, p75 ${s[size * 3 / 4]}us"
+    return "median ${s[size / 2] / 1000.0}us, min ${s.first() / 1000.0}us, " +
+      "p90 ${s[size * 9 / 10] / 1000.0}us"
   }
 
   private fun Int.label() = when {
@@ -81,8 +95,17 @@ class CallPathBenchmark {
   }.padEnd(6)
 
   private companion object {
-    const val WARMUPS = 5
-    const val RUNS = 31
-    val SIZES = listOf(1536, 16 * 1024, 64 * 1024, 256 * 1024, 1024 * 1024)
+    /**
+     * Enough iterations for the JIT to settle.
+     *
+     * An earlier version used 5 warmups and 31 runs and produced nonsense: a 64 KB call finishing
+     * faster than an empty one, and a "190 us floor" that turned out to be warmup. Properly warmed,
+     * an empty call is 26 us. Anything below a few hundred iterations here measures the JIT.
+     */
+    const val WARMUPS = 500
+    const val RUNS = 2_000
+    const val SLOW_WARMUPS = 3
+    const val SLOW_RUNS = 15
+    val SIZES = listOf(1536, 16 * 1024, 64 * 1024, 256 * 1024)
   }
 }

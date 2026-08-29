@@ -176,6 +176,14 @@ kotlin {
   }
 }
 
+// Benchmarks are measurements, not checks: their large lanes cost seconds per run, and leaving them
+// in the default suite took :zipline:jvmTest past an hour. Run them with -Pbenchmarks.
+tasks.withType<Test>().configureEach {
+  if (!project.hasProperty("benchmarks")) {
+    exclude("bench/**")
+  }
+}
+
 buildConfig {
   useKotlinOutput {
     internalVisibility = true
