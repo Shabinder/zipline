@@ -28,6 +28,50 @@ val copyTestingJs = tasks.register<Copy>("copyTestingJs") {
   destinationDir = rootProject.layout.buildDirectory.dir("generated/testingJs").get().asFile
   from(rootDir.resolve("zipline-testing/build/compileSync/js/main/developmentLibrary/kotlin"))
 }
+
+val buildMacosArm64StaticQuickJs = tasks.register<Exec>("buildMacosArm64StaticQuickJs") {
+  val sourceRoot = layout.projectDirectory.dir("native")
+  val outputDir = layout.buildDirectory.dir("native-static")
+  val sources = listOf(
+    "quickjs/cutils.c",
+    "quickjs/dtoa.c",
+    "quickjs/libregexp.c",
+    "quickjs/libunicode.c",
+    "quickjs/quickjs.c",
+    "common/context-no-eval.c",
+    "common/finalization-registry.c",
+    "common/global-gc.c",
+  )
+  inputs.files(sources.map(sourceRoot.asFile::resolve))
+  outputs.file(outputDir.map { it.file("libquickjs.a") })
+
+  val sourcePaths = sources.joinToString(" ") { sourceRoot.file(it).asFile.absolutePath }
+  val outputPath = outputDir.get().asFile.absolutePath
+  commandLine(
+    "/bin/sh",
+    "-c",
+    """
+      set -eu
+      mkdir -p "$outputPath"
+      for source in $sourcePaths; do
+        object="$outputPath/${'$'}(basename "${'$'}source" .c).o"
+        /usr/bin/clang -O2 -fPIC -DKONAN_MI_MALLOC=1 \
+          -DCONFIG_VERSION='"${quickJsVersion()}"' \
+          -Wno-unknown-pragmas -Wno-unused-function -Wno-sign-compare \
+          -Wno-unused-parameter -D_Float16=short \
+          -I"${sourceRoot.dir("quickjs").asFile.absolutePath}" \
+          -c "${'$'}source" -o "${'$'}object"
+      done
+      /usr/bin/ar rcs "$outputPath/libquickjs.a" "$outputPath"/*.o
+    """.trimIndent(),
+  )
+}
+
+tasks.configureEach {
+  if (name == "linkDebugTestMacosArm64" || name == "linkReleaseTestMacosArm64") {
+    dependsOn(buildMacosArm64StaticQuickJs)
+  }
+}
 tasks.withType<KotlinNativeTest>().configureEach {
   dependsOn(":zipline-testing:compileDevelopmentLibraryKotlinJs")
 }
