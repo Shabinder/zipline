@@ -24,6 +24,8 @@ import kotlinx.serialization.json.Json
  * `String`, which is what the same payload costs as text and is kept as the before-picture. `ping`
  * prices the envelope with no payload, so payload cost can be separated from call cost.
  */
+@org.junit.Ignore("Measurement, not a check: the 1 MB text lanes cost seconds per run. " +
+  "Run explicitly with --tests 'bench.BinaryBridgeBenchmark'.")
 class BinaryBridgeBenchmark {
   private val dispatcher = StandardTestDispatcher()
   private val zipline = Zipline.create(dispatcher)
@@ -43,6 +45,12 @@ class BinaryBridgeBenchmark {
       val sinkBytes = measure { assertEquals(size, service.sinkBytes(bytes)) }
       val echoBytes = measure { assertEquals(size, service.echoBytes(bytes).size) }
       // The host-side encode and decode are inside the timing: they are part of the cost.
+      // What an ordinary call costs today: the payload is text, and so is the whole call.
+      val text = CharArray(size) { ('a' + (it % 26)) }.concatToString()
+      val textBytes = text.encodeToByteArray()
+      val sinkString = measure { assertEquals(size, service.sinkString(text)) }
+      val sinkTextBytes = measure { assertEquals(size, service.sinkTextAsBytes(textBytes)) }
+
       val sinkB64 = measure {
         assertEquals(size, service.sinkBase64(Base64.getEncoder().encodeToString(bytes)))
       }
@@ -57,6 +65,8 @@ class BinaryBridgeBenchmark {
 
       println("BENCH|${size.label()} sinkBytes:  ${sinkBytes.report()}")
       println("BENCH|${size.label()} echoBytes:  ${echoBytes.report()}")
+      println("BENCH|${size.label()} sinkString: ${sinkString.report()}")
+      println("BENCH|${size.label()} sinkTxtByt: ${sinkTextBytes.report()}")
       println("BENCH|${size.label()} sinkBase64: ${sinkB64.report()}")
       println("BENCH|${size.label()} echoBase64: ${echoB64.report()}")
       println("BENCH|${size.label()} hostJson:   ${hostJson.report()}")

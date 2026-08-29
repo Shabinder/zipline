@@ -34,6 +34,10 @@ class JsBinaryEchoService : BinaryEchoService {
 
   override fun echoBase64(payload: String) = Base64.encode(Base64.decode(payload))
 
+  override fun sinkString(payload: String) = payload.length
+
+  override fun sinkTextAsBytes(payload: ByteArray) = payload.decodeToString().length
+
   override fun concat(first: ByteArray, second: ByteArray, third: ByteArray) = first + second + third
 
   override fun sinkNullable(payload: ByteArray?) = payload?.size ?: -1

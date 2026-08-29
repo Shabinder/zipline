@@ -48,6 +48,7 @@ import app.cash.zipline.quickjs.JS_GetArrayBuffer
 import app.cash.zipline.quickjs.JS_GetPropertyUint32
 import app.cash.zipline.quickjs.JS_GetTypedArrayBuffer
 import app.cash.zipline.quickjs.JsUndefined
+import app.cash.zipline.quickjs.JS_IsNull
 import app.cash.zipline.quickjs.JS_NewArray
 import app.cash.zipline.quickjs.JS_NewInt32
 import app.cash.zipline.quickjs.JS_NewArrayBufferCopy
@@ -387,7 +388,9 @@ actual class QuickJs private constructor(
   }
 
   internal fun jsOutboundCall(argc: Int, argv: CArrayPointer<JSValue>): CValue<JSValue> {
-    assert(argc == 2)
+    // argc is what the caller passed, not the declared arity: QuickJS pads argv with undefined up
+    // to the declared length, so a guest calling call(json) alone is legal and means "no buffers".
+    assert(argc >= 1)
     val arg0 = JsValueArrayToInstanceRef(argv, 0).toKotlinInstanceOrNull() as String
     val arg1 = JsValueArrayToInstanceRef(argv, 1).toKotlinByteArrayArray()
     val result = outboundChannel!!.call(arg0, arg1)
@@ -546,6 +549,11 @@ actual class QuickJs private constructor(
    * is an error rather than a crash.
    */
   internal fun CValue<JSValue>.toKotlinByteArrayArray(): Array<ByteArray> {
+    // A caller that passes no buffers at all is normal - QuickJS pads a short argument list with
+    // undefined up to the declared arity - and means an empty list, not an error. The JNI side
+    // tolerates the same thing.
+    if (JS_IsUndefined(this) != 0 || JS_IsNull(this) != 0) return emptyArray()
+
     val lengthValue = JS_GetPropertyStr(context, this, "length")
     val length = lengthValue.toKotlinInstanceOrNull() as? Int ?: 0
     JS_FreeValue(context, lengthValue)

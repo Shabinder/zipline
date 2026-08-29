@@ -146,6 +146,20 @@ kotlin {
       binaries.withType<Framework> {
         linkerOpts += "-lsqlite3"
       }
+
+      // Link the test binaries against a static QuickJS built for the host.
+      //
+      // cklib 0.3.5 embeds its bitcode with -Xinclude-binary, which Kotlin 2.4 removed ("Flag is
+      // not supported by this version of the compiler"), so the klib's `included/` directory comes
+      // out empty and every JS_* symbol is undefined at link. That is why the native tests could
+      // not run at all. Building the same sources into a static archive and handing it to the
+      // linker restores them, for tests on the host at least. Remove when cklib supports 2.4.
+      val staticQuickJs = layout.projectDirectory.dir("build/native-static")
+      if (konanTarget.name == "macos_arm64") {
+        binaries.withType<TestExecutable> {
+          linkerOpts += listOf("-L${staticQuickJs.asFile.absolutePath}", "-lquickjs")
+        }
+      }
     }
 
     targets.withType<KotlinNativeTargetWithTests<*>> {

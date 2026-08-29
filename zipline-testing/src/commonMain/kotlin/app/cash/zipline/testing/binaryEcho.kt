@@ -41,6 +41,19 @@ interface BinaryEchoService : ZiplineService {
   /** Host to guest and back, base64, with a decode and re-encode in the guest. */
   fun echoBase64(payload: String): String
 
+  /**
+   * A plain string argument: what *every* ordinary call looks like today, since the whole call is
+   * JSON text. Returns its length so the guest must have materialised it.
+   */
+  fun sinkString(payload: String): Int
+
+  /**
+   * The same text, sent as UTF-8 bytes and decoded in the guest. The question this answers is
+   * whether moving a text payload onto the binary path is a win once the guest still has to turn
+   * the bytes back into a string.
+   */
+  fun sinkTextAsBytes(payload: ByteArray): Int
+
   /** Several buffers in one call, to prove the indices line up. */
   fun concat(first: ByteArray, second: ByteArray, third: ByteArray): ByteArray
 

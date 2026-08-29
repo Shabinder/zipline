@@ -51,10 +51,12 @@ OutboundCallChannel::call(JSContext* ctx, JSValueConst this_val, int argc, JSVal
     return JS_ThrowReferenceError(ctx, "Not an OutboundCallChannel");
   }
 
-  assert(argc == 2);
+  // argc is what the caller passed; QuickJS pads argv with undefined up to the declared arity, so
+  // a guest calling call(json) with no buffers is legal and means an empty list.
+  assert(argc >= 1);
 
   auto env = context->getEnv();
-  env->PushLocalFrame(argc + 2);
+  env->PushLocalFrame(4);
   jvalue args[2];
   args[0].l = context->toJavaString(env, argv[0]);
   args[1].l = context->toJavaByteArrayArray(env, argv[1]);
