@@ -29,10 +29,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.modules.EmptySerializersModule
+import okio.Buffer
 import okio.ByteString
 import okio.ByteString.Companion.encodeUtf8
 import okio.FileSystem
+import okio.GzipSink
 import okio.Path
+import okio.buffer
 
 class ProductionFetcherReceiverTest {
   private val tester = LoaderTester()
@@ -136,6 +139,75 @@ class ProductionFetcherReceiverTest {
     assertEquals(testFixtures.alphaByteString, ziplineFileFromCache)
   }
 
+  @Test
+  fun getGzipSidecarsFromNetworkAndCacheDecodedModules() = runBlocking {
+    val manifest = ZiplineManifest.create(
+      modules = testFixtures.manifest.modules,
+      mainFunction = testFixtures.manifest.mainFunction,
+      mainModuleId = testFixtures.manifest.mainModuleId,
+      version = testFixtures.manifest.version,
+      baseUrl = testFixtures.manifest.baseUrl,
+      metadata = mapOf("soundbound.moduleCompression" to "gzip"),
+    )
+    tester.httpClient.filePathToByteString = mapOf(
+      "$ALPHA_URL.gz" to testFixtures.alphaByteString.gzip(),
+      "$BRAVO_URL.gz" to testFixtures.bravoByteString.gzip(),
+    )
+
+    zipline = loader.loadOrFail("test", manifest)
+
+    assertEquals(
+      """
+      |alpha loaded
+      |bravo loaded
+      |
+      """.trimMargin(),
+      getLog(),
+    )
+    assertEquals(testFixtures.alphaByteString, cache.read(testFixtures.alphaSha256, nowMillis))
+    assertEquals(testFixtures.bravoByteString, cache.read(testFixtures.bravoSha256, nowMillis))
+  }
+
+  @Test
+  fun fallsBackFromBrotliToGzip() = runBlocking {
+    val manifest = ZiplineManifest.create(
+      modules = testFixtures.manifest.modules,
+      mainFunction = testFixtures.manifest.mainFunction,
+      mainModuleId = testFixtures.manifest.mainModuleId,
+      version = testFixtures.manifest.version,
+      baseUrl = testFixtures.manifest.baseUrl,
+      metadata = mapOf("soundbound.moduleCompressions" to "brotli,gzip"),
+    )
+    tester.httpClient.filePathToByteString = mapOf(
+      "$ALPHA_URL.gz" to testFixtures.alphaByteString.gzip(),
+      "$BRAVO_URL.gz" to testFixtures.bravoByteString.gzip(),
+    )
+
+    zipline = loader.loadOrFail("test", manifest)
+
+    assertEquals("alpha loaded\nbravo loaded\n", getLog())
+  }
+
+  @Test
+  fun fallsBackToRawModuleWhenGzipSidecarIsUnavailable() = runBlocking {
+    val manifest = ZiplineManifest.create(
+      modules = testFixtures.manifest.modules,
+      mainFunction = testFixtures.manifest.mainFunction,
+      mainModuleId = testFixtures.manifest.mainModuleId,
+      version = testFixtures.manifest.version,
+      baseUrl = testFixtures.manifest.baseUrl,
+      metadata = mapOf("soundbound.moduleCompression" to "gzip"),
+    )
+    tester.httpClient.filePathToByteString = mapOf(
+      ALPHA_URL to testFixtures.alphaByteString,
+      BRAVO_URL to testFixtures.bravoByteString,
+    )
+
+    zipline = loader.loadOrFail("test", manifest)
+
+    assertEquals("alpha loaded\nbravo loaded\n", getLog())
+  }
+
   @Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER") // Access :zipline-loader internals.
   private fun getLog() = app.cash.zipline.internal.getLog(zipline.quickJs)
 
@@ -152,5 +224,11 @@ class ProductionFetcherReceiverTest {
       initializer = initializer,
       nowEpochMs = nowMillis,
     )
+  }
+
+  private fun ByteString.gzip(): ByteString {
+    val result = Buffer()
+    GzipSink(result).buffer().use { it.write(this) }
+    return result.readByteString()
   }
 }
