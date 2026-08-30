@@ -165,6 +165,10 @@ kotlin {
 
       main.cinterops {
         create("quickjs") {
+          // Keep quickjs.def's noStringConversion rules when adding the target archive below.
+          // Without an explicit definition file Kotlin 2.4 regenerates JS_Eval with String
+          // parameters, while QuickJs.kt intentionally passes UTF-8 byte buffers.
+          defFile(file("src/nativeInterop/cinterop/quickjs.def"))
           header(file("native/quickjs/quickjs.h"))
           header(file("native/common/context-no-eval.h"))
           header(file("native/common/finalization-registry.h"))
