@@ -29,49 +29,6 @@ val copyTestingJs = tasks.register<Copy>("copyTestingJs") {
   from(rootDir.resolve("zipline-testing/build/compileSync/js/main/developmentLibrary/kotlin"))
 }
 
-val buildMacosArm64StaticQuickJs = tasks.register<Exec>("buildMacosArm64StaticQuickJs") {
-  val sourceRoot = layout.projectDirectory.dir("native")
-  val outputDir = layout.buildDirectory.dir("native-static")
-  val sources = listOf(
-    "quickjs/cutils.c",
-    "quickjs/dtoa.c",
-    "quickjs/libregexp.c",
-    "quickjs/libunicode.c",
-    "quickjs/quickjs.c",
-    "common/context-no-eval.c",
-    "common/finalization-registry.c",
-    "common/global-gc.c",
-  )
-  inputs.files(sources.map(sourceRoot.asFile::resolve))
-  outputs.file(outputDir.map { it.file("libquickjs.a") })
-
-  val sourcePaths = sources.joinToString(" ") { sourceRoot.file(it).asFile.absolutePath }
-  val outputPath = outputDir.get().asFile.absolutePath
-  commandLine(
-    "/bin/sh",
-    "-c",
-    """
-      set -eu
-      mkdir -p "$outputPath"
-      for source in $sourcePaths; do
-        object="$outputPath/${'$'}(basename "${'$'}source" .c).o"
-        /usr/bin/clang -O2 -fPIC -DKONAN_MI_MALLOC=1 \
-          -DCONFIG_VERSION='"${quickJsVersion()}"' \
-          -Wno-unknown-pragmas -Wno-unused-function -Wno-sign-compare \
-          -Wno-unused-parameter -D_Float16=short \
-          -I"${sourceRoot.dir("quickjs").asFile.absolutePath}" \
-          -c "${'$'}source" -o "${'$'}object"
-      done
-      /usr/bin/ar rcs "$outputPath/libquickjs.a" "$outputPath"/*.o
-    """.trimIndent(),
-  )
-}
-
-tasks.configureEach {
-  if (name == "linkDebugTestMacosArm64" || name == "linkReleaseTestMacosArm64") {
-    dependsOn(buildMacosArm64StaticQuickJs)
-  }
-}
 tasks.withType<KotlinNativeTest>().configureEach {
   dependsOn(":zipline-testing:compileDevelopmentLibraryKotlinJs")
 }
@@ -177,6 +134,35 @@ kotlin {
     targets.withType<KotlinNativeTarget> {
       val main by compilations.getting
 
+      // cklib 0.3.5 still compiles the correct per-target LLVM bitcode with Kotlin 2.4, but its
+      // removed -Xinclude-binary integration leaves published cinterop KLIBs with an empty
+      // `included/` directory. Archive that same target bitcode and use Kotlin cinterop's
+      // supported static-library packaging so consumers link the exact QuickJS ABI represented
+      // by these headers. See https://kotlinlang.org/docs/native-definition-file.html#properties.
+      val targetName = this@withType.name
+      val targetTitle = targetName.replaceFirstChar { it.titlecase() }
+      val quickJsBitcode = layout.buildDirectory.file(
+        "cklib/quickjs/${konanTarget.name}/quickjs.bc",
+      )
+      val quickJsArchiveDirectory = layout.buildDirectory.dir(
+        "native-static/${konanTarget.name}",
+      )
+      val quickJsArchive = quickJsArchiveDirectory.map { it.file("libquickjs.a") }
+      val archiveQuickJs = tasks.register<Exec>("archive${targetTitle}QuickJs") {
+        dependsOn("${targetName}Quickjs")
+        inputs.file(quickJsBitcode)
+        outputs.file(quickJsArchive)
+        doFirst {
+          quickJsArchiveDirectory.get().asFile.mkdirs()
+        }
+        commandLine(
+          "/usr/bin/ar",
+          "rcs",
+          quickJsArchive.get().asFile.absolutePath,
+          quickJsBitcode.get().asFile.absolutePath,
+        )
+      }
+
       main.cinterops {
         create("quickjs") {
           header(file("native/quickjs/quickjs.h"))
@@ -184,26 +170,23 @@ kotlin {
           header(file("native/common/finalization-registry.h"))
           header(file("native/common/global-gc.h"))
           packageName("app.cash.zipline.quickjs")
+          extraOpts(
+            "-libraryPath",
+            quickJsArchiveDirectory.get().asFile.absolutePath,
+            "-staticLibrary",
+            quickJsArchive.get().asFile.name,
+          )
         }
+      }
+
+      tasks.named("cinteropQuickjs${targetTitle}") {
+        dependsOn(archiveQuickJs)
       }
 
       binaries.withType<Framework> {
         linkerOpts += "-lsqlite3"
       }
 
-      // Link the test binaries against a static QuickJS built for the host.
-      //
-      // cklib 0.3.5 embeds its bitcode with -Xinclude-binary, which Kotlin 2.4 removed ("Flag is
-      // not supported by this version of the compiler"), so the klib's `included/` directory comes
-      // out empty and every JS_* symbol is undefined at link. That is why the native tests could
-      // not run at all. Building the same sources into a static archive and handing it to the
-      // linker restores them, for tests on the host at least. Remove when cklib supports 2.4.
-      val staticQuickJs = layout.projectDirectory.dir("build/native-static")
-      if (konanTarget.name == "macos_arm64") {
-        binaries.withType<TestExecutable> {
-          linkerOpts += listOf("-L${staticQuickJs.asFile.absolutePath}", "-lquickjs")
-        }
-      }
     }
 
     targets.withType<KotlinNativeTargetWithTests<*>> {
