@@ -31,9 +31,17 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import okio.ByteString
 import okio.ByteString.Companion.encodeUtf8
 import okio.FileSystem
@@ -406,6 +414,156 @@ class ZiplineCacheTest {
           afterWriteCallback(file)
         }
       }
+    }
+  }
+
+
+  @Test
+  fun concurrentCallersForTheSameFileShareASingleDownload(): Unit = runBlocking {
+    withCache { ziplineCache ->
+      val content = "abc123".encodeUtf8()
+      val sha = content.sha256()
+      val downloadReached = CompletableDeferred<Unit>()
+      val releaseDownload = CompletableDeferred<Unit>()
+      var downloads = 0
+
+      val results = coroutineScope {
+        val callers = (1..5).map {
+          async {
+            ziplineCache.getOrPut("app1", sha) {
+              downloads++
+              downloadReached.complete(Unit)
+              releaseDownload.await()
+              content
+            }
+          }
+        }
+
+        // Let the first caller reach the download, then let the other four queue up behind it.
+        downloadReached.await()
+        repeat(callers.size) { yield() }
+        releaseDownload.complete(Unit)
+        callers.awaitAll()
+      }
+
+      assertEquals(1, downloads, "the same content was downloaded more than once")
+      assertTrue(results.all { it == content })
+    }
+  }
+
+  @Test
+  fun downloadsOfDifferentFilesAreNotSerialized(): Unit = runBlocking {
+    withCache { ziplineCache ->
+      val a = "aaa".encodeUtf8()
+      val b = "bbb".encodeUtf8()
+      val bothStarted = CompletableDeferred<Unit>()
+      val release = CompletableDeferred<Unit>()
+      var started = 0
+
+      // Guards against fixing the duplicate-download problem by locking the downloads themselves:
+      // unrelated files must still be fetched at the same time.
+      coroutineScope {
+        val callers = listOf(a, b).map { content ->
+          async {
+            ziplineCache.getOrPut("app1", content.sha256()) {
+              if (++started == 2) bothStarted.complete(Unit)
+              release.await()
+              content
+            }
+          }
+        }
+        bothStarted.await()
+        assertEquals(2, started, "a second file could not start while the first was downloading")
+        release.complete(Unit)
+        callers.awaitAll()
+      }
+    }
+  }
+
+  @Test
+  fun aWaiterRetriesWhenTheOwningDownloadFails(): Unit = runBlocking {
+    withCache { ziplineCache ->
+      val content = "abc123".encodeUtf8()
+      val sha = content.sha256()
+      val firstReached = CompletableDeferred<Unit>()
+      val releaseFirst = CompletableDeferred<Unit>()
+      var attempts = 0
+
+      // supervisorScope, not coroutineScope: a failing `async` cancels a regular scope as soon as
+      // it throws, which would tear the test down before the waiter could be observed recovering.
+      supervisorScope {
+        val owner = async {
+          ziplineCache.getOrPut("app1", sha) {
+            attempts++
+            firstReached.complete(Unit)
+            releaseFirst.await()
+            throw IOException("download failed")
+          }
+        }
+        firstReached.await()
+
+        val waiter = async {
+          ziplineCache.getOrPut("app1", sha) {
+            attempts++
+            content
+          }
+        }
+        yield()
+        releaseFirst.complete(Unit)
+
+        // The owner sees its own failure...
+        assertFailsWith<IOException> { owner.await() }
+        // ...but the waiter is not punished for it; it downloads on its own behalf and succeeds.
+        assertEquals(content, waiter.await())
+      }
+      assertEquals(2, attempts)
+    }
+  }
+
+  @Test
+  fun cancellingOneCallerDoesNotCancelAnother(): Unit = runBlocking {
+    withCache { ziplineCache ->
+      val content = "abc123".encodeUtf8()
+      val sha = content.sha256()
+      val ownerReached = CompletableDeferred<Unit>()
+      var attempts = 0
+
+      coroutineScope {
+        val owner = async {
+          ziplineCache.getOrPut("app1", sha) {
+            attempts++
+            ownerReached.complete(Unit)
+            awaitCancellation()
+          }
+        }
+        ownerReached.await()
+
+        val waiter = async {
+          ziplineCache.getOrPut("app1", sha) {
+            attempts++
+            content
+          }
+        }
+        yield()
+
+        // Each extension load is cancellable on its own; one giving up must not strand the others
+        // that were waiting on the download it happened to own.
+        owner.cancel()
+        assertEquals(content, waiter.await())
+      }
+      assertEquals(2, attempts)
+    }
+  }
+
+  @Test
+  fun aSecondCallerReadsTheCacheRatherThanDownloadingAgain(): Unit = runBlocking {
+    withCache { ziplineCache ->
+      val content = "abc123".encodeUtf8()
+      val sha = content.sha256()
+
+      assertEquals(content, ziplineCache.getOrPut("app1", sha) { content })
+      // Once the download has finished the in-flight entry is gone, so this has to come off disk.
+      assertEquals(content, ziplineCache.getOrPut("app1", sha) { error("expected to be cached") })
     }
   }
 
