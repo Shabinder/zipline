@@ -18,6 +18,7 @@ package app.cash.zipline.bytecode
 import app.cash.zipline.QuickJs
 import assertk.assertThat
 import assertk.assertions.containsExactly
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import okio.Buffer
 import okio.ByteString.Companion.toByteString
@@ -43,14 +44,14 @@ class JsObjectEncodingTest {
 
     assertThat(evalFunction.name).isEqualTo("<eval>")
     assertThat(evalFunction.debug?.fileName).isEqualTo("hello.js")
-    assertThat(evalFunction.debug?.lineNumber).isEqualTo(1)
+    assertThat(evalFunction.debug?.functionLineNumber()).isEqualTo(1)
 
     val greetFunction = evalFunction.constantPool.single() as JsFunctionBytecode
     assertThat(greetFunction.name).isEqualTo("greet")
     assertThat(greetFunction.argCount).isEqualTo(1)
     assertThat(greetFunction.locals.single().name).isEqualTo("name")
     assertThat(greetFunction.debug?.fileName).isEqualTo("hello.js")
-    assertThat(greetFunction.debug?.lineNumber).isEqualTo(1)
+    assertThat(greetFunction.debug?.functionLineNumber()).isEqualTo(1)
   }
 
   @Test fun primitiveValues() {
@@ -101,11 +102,15 @@ class JsObjectEncodingTest {
     )
 
     assertThat(evalFunction.name).isEqualTo("<eval>")
-    assertThat(assertLineNumbersRoundTrip(evalFunction.debug!!))
-      .containsExactly(0, 10)
+    // The wrapper is a single statement, so its table is just the header.
+    assertThat(evalFunction.debug!!.functionLineNumber()).isEqualTo(1)
+    assertThat(assertLineNumbersRoundTrip(evalFunction.debug!!)).isEmpty()
 
+    // The lines that actually hold statements. Since QuickJS 2026-06-04 a line appears once per
+    // column that carries an instruction, so the raw sequence repeats; the distinct lines are what
+    // this test is about.
     val function = evalFunction.constantPool.single() as JsFunctionBytecode
-    assertThat(assertLineNumbersRoundTrip(function.debug!!))
+    assertThat(assertLineNumbersRoundTrip(function.debug!!).distinct())
       .containsExactly(2, 5, 6, 8, 9)
   }
 
@@ -213,15 +218,22 @@ class JsObjectEncodingTest {
     return decoded as JsFunctionBytecode
   }
 
+  /**
+   * The function's own line, which since QuickJS 2026-06-04 is the head of the pc2line table
+   * rather than a separate field on the debug record.
+   */
+  private fun Debug.functionLineNumber(): Int =
+    LineNumberReader(Buffer().write(pc2Line)).line
+
   /** Returns the line numbers only. */
   private fun assertLineNumbersRoundTrip(debug: Debug): List<Int> {
-    val reader = LineNumberReader(debug.lineNumber, Buffer().write(debug.pc2Line))
+    val reader = LineNumberReader(Buffer().write(debug.pc2Line))
     val result = mutableListOf<Int>()
 
     val buffer = Buffer()
-    val writer = LineNumberWriter(debug.lineNumber, buffer)
+    val writer = LineNumberWriter(reader.line, reader.column, buffer)
     while (reader.next()) {
-      writer.next(reader.pc, reader.line)
+      writer.next(reader.pc, reader.line, reader.column)
       result += reader.line
     }
 

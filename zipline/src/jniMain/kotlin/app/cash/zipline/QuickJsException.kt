@@ -35,8 +35,24 @@ actual class QuickJsException @JvmOverloads constructor(
      * "func" is optional, but we'll omit frames without a function, since it means the frame is in
      * native code.
      */
+    /**
+     * Matches one QuickJS stack frame: `    at f1 (explode.js:2:57)`.
+     *
+     * Line and column are captured separately rather than being swept into the file name.
+     * QuickJS 2026-06-04 appends a column to every frame where 2021-03-27 emitted only a line,
+     * and the previous pattern captured the whole `file:line[:column]` blob as the file - so the
+     * added column silently changed every rendered frame from `(explode.js:2)` to
+     * `(explode.js:2:57)`. Parsing the parts also means the line number lands in
+     * StackTraceElement's lineNumber field, where it belongs.
+     *
+     * Frames with no location at all (`at JavaScript.disconnect(native)`) still match, with no
+     * line number.
+     */
     private val STACK_TRACE_PATTERN =
-      Pattern.compile("\\s*at ([^\\s]+) \\(([^\\s]+(?<!cpp))[:(\\d+)]?\\).*$")
+      Pattern.compile("\\s*at ([^\\s]+) \\((.+(?<!cpp))\\).*$")
+
+    /** Trailing `:123` on a location, stripped one at a time from the right. */
+    private val TRAILING_NUMBER = Regex(":(\\d+)$")
 
     /** Java StackTraceElements require a class name.  We don't have one in JS, so use this.  */
     private const val STACK_TRACE_CLASS_NAME = "JavaScript"
@@ -83,12 +99,26 @@ actual class QuickJsException @JvmOverloads constructor(
       return if (!m.matches()) {
         null // Nothing interesting on this line.
       } else {
-        StackTraceElement(
-          STACK_TRACE_CLASS_NAME,
-          m.group(1),
-          m.group(2),
-            if (m.groupCount() > 3) m.group(3)!!.toInt() else -1,
-        )
+        // QuickJS 2026-06-04 renders `file:line:column`; 2021-03-27 rendered `file:line`; and a
+        // frame with no location at all is just `native`. Strip the numeric suffixes from the
+        // RIGHT rather than matching the file with one pattern - Windows paths contain a colon
+        // (`C:\\Documents\\myFile.js:8`), so any file pattern that forbids colons drops those
+        // frames entirely.
+        var file = m.group(2)
+        var line = -1
+        TRAILING_NUMBER.find(file)?.let { last ->
+          val withoutLast = file.substring(0, last.range.first)
+          val secondLast = TRAILING_NUMBER.find(withoutLast)
+          if (secondLast != null) {
+            // file:line:column - the one we just stripped was the column.
+            line = secondLast.groupValues[1].toInt()
+            file = withoutLast.substring(0, secondLast.range.first)
+          } else {
+            line = last.groupValues[1].toInt()
+            file = withoutLast
+          }
+        }
+        StackTraceElement(STACK_TRACE_CLASS_NAME, m.group(1), file, line)
       }
     }
   }

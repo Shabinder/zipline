@@ -123,11 +123,11 @@ class ApplySourceMapToBytecodeTest {
     assertThat(exception.stackTraceToString()).startsWith(
       """
       |app.cash.zipline.QuickJsException: boom!
-      |	at JavaScript.goBoom1(throwException.kt)
+      |	at JavaScript.goBoom1(throwException.kt:12)
       |	at JavaScript.goBoom2(throwException.kt:9)
       |	at JavaScript.goBoom3(throwException.kt:6)
       |	at JavaScript.sayHello(throwException.kt:3)
-      |	at JavaScript.<eval>(?)
+      |	at JavaScript.<eval>(?:1)
       |
       """.trimMargin(),
     )
@@ -180,7 +180,7 @@ class ApplySourceMapToBytecodeTest {
       |  at JavaScript.<anonymous>(app/cash/zipline/testing/goBoom.kt:10)
       |  at JavaScript.<anonymous>(app/cash/zipline/testing/goBoom.kt:10)
       |  at JavaScript.<anonymous>(app/cash/zipline/testing/goBoom.kt:10)
-      |  at JavaScript.<eval>(?)
+      |  at JavaScript.<eval>(?:1)
       |
       """.trimMargin(),
     )

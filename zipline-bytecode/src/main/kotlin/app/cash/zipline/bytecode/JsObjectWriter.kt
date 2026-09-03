@@ -96,6 +96,7 @@ class JsObjectWriter(
     sink.writeLeb128(value.varCount)
     sink.writeLeb128(value.definedArgCount)
     sink.writeLeb128(value.stackSize)
+    sink.writeLeb128(value.varRefCount)
     sink.writeLeb128(value.closureVars.size)
     sink.writeLeb128(value.constantPool.size)
     sink.writeLeb128(value.bytecode.size)
@@ -128,32 +129,34 @@ class JsObjectWriter(
 
   private fun writeVarDef(value: JsVarDef) {
     writeAtom(value.name.toJsString())
-    sink.writeLeb128(value.scopeLevel)
     sink.writeLeb128(value.scopeNext + 1)
+    sink.writeLeb128(value.varRefIndex)
     sink.writeByte(
       value.kind or
         value.isConst.toBit(4) or
         value.isLexical.toBit(5) or
-        value.isCaptured.toBit(6),
+        value.isCaptured.toBit(6) or
+        value.hasScope.toBit(7),
     )
   }
 
   private fun writeClosureVar(value: JsClosureVar) {
     writeAtom(value.name.toJsString())
     sink.writeLeb128(value.varIndex)
-    sink.writeByte(
-      value.isLocal.toBit(0) or
-        value.isArg.toBit(1) or
-        value.isConst.toBit(2) or
-        value.isLexical.toBit(3) or
-        (value.kind shl 4),
+    // Two bytes since QuickJS 2026-06-04; one byte before that.
+    sink.writeShortLe(
+      value.closureType or
+        value.isConst.toBit(3) or
+        value.isLexical.toBit(4) or
+        (value.kind shl 5),
     )
   }
 
   private fun writeDebug(debug: Debug) {
     writeAtom(debug.fileName.toJsString())
-    sink.writeLeb128(debug.lineNumber)
     sink.writeLeb128(debug.pc2Line.size)
     sink.write(debug.pc2Line)
+    sink.writeLeb128(debug.source.size)
+    sink.write(debug.source)
   }
 }

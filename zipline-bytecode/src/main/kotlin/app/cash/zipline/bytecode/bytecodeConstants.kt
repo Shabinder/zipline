@@ -15,7 +15,18 @@
  */
 package app.cash.zipline.bytecode
 
-internal const val BC_VERSION = 1
+/**
+ * QuickJS bytecode format version, from `BC_VERSION` in `quickjs.c`.
+ *
+ * QuickJS refuses to read an object whose version byte does not match its own exactly, so this
+ * must track the vendored engine. Version 5 corresponds to QuickJS `2026-06-04`; version 1 was
+ * `2021-03-27`.
+ */
+internal const val BC_VERSION = 5
+
+// Tags, from the `BC_TAG_*` enum in `quickjs.c`. QuickJS 2026-06-04 dropped BC_TAG_BIG_FLOAT and
+// BC_TAG_BIG_DECIMAL (the BigFloat/BigDecimal extensions were removed from the language), so every
+// tag above BC_TAG_BIG_INT shifted down by two.
 internal const val BC_TAG_NULL = 1
 internal const val BC_TAG_UNDEFINED = 2
 internal const val BC_TAG_BOOL_FALSE = 3
@@ -26,14 +37,12 @@ internal const val BC_TAG_STRING = 7
 internal const val BC_TAG_OBJECT = 8
 internal const val BC_TAG_ARRAY = 9
 internal const val BC_TAG_BIG_INT = 10
-internal const val BC_TAG_BIG_FLOAT = 11
-internal const val BC_TAG_BIG_DECIMAL = 12
-internal const val BC_TAG_TEMPLATE_OBJECT = 13
-internal const val BC_TAG_FUNCTION_BYTECODE = 14
-internal const val BC_TAG_MODULE = 15
-internal const val BC_TAG_TYPED_ARRAY = 16
-internal const val BC_TAG_ARRAY_BUFFER = 17
-internal const val BC_TAG_SHARED_ARRAY_BUFFER = 18
-internal const val BC_TAG_DATE = 19
-internal const val BC_TAG_OBJECT_VALUE = 20
-internal const val BC_TAG_OBJECT_REFERENCE = 21
+internal const val BC_TAG_TEMPLATE_OBJECT = 11
+internal const val BC_TAG_FUNCTION_BYTECODE = 12
+internal const val BC_TAG_MODULE = 13
+internal const val BC_TAG_TYPED_ARRAY = 14
+internal const val BC_TAG_ARRAY_BUFFER = 15
+internal const val BC_TAG_SHARED_ARRAY_BUFFER = 16
+internal const val BC_TAG_DATE = 17
+internal const val BC_TAG_OBJECT_VALUE = 18
+internal const val BC_TAG_OBJECT_REFERENCE = 19

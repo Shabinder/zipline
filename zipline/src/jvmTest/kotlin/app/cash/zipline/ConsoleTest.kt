@@ -53,10 +53,19 @@ class ConsoleTest {
     level = Level.FINEST
   }
 
+  /**
+   * Hold a strong reference to the logger. java.util.logging.LogManager keeps only a weak
+   * reference, so without this the logger can be garbage collected between setUp() and the test
+   * body - taking its level and our handler with it. The test then waits forever for a record
+   * that will never be published. It is timing-dependent, so it shows up as a flake under
+   * whole-suite GC pressure rather than as a reliable failure.
+   */
+  private lateinit var logger: Logger
+
   @Before
   fun setUp(): Unit = runTest(dispatcher) {
     zipline.loadTestingJs()
-    Logger.getLogger(Zipline::class.qualifiedName).apply {
+    logger = Logger.getLogger(Zipline::class.qualifiedName).apply {
       level = Level.FINEST
       addHandler(logHandler)
     }
@@ -64,7 +73,7 @@ class ConsoleTest {
   }
 
   @After fun tearDown() = runTest(dispatcher) {
-    Logger.getLogger(Zipline::class.qualifiedName).removeHandler(logHandler)
+    logger.removeHandler(logHandler)
     zipline.close()
   }
 

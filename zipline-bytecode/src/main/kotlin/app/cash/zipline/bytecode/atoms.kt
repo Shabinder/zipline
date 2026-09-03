@@ -72,7 +72,17 @@ class MutableAtomSet(
   override fun toMutableAtomSet(): MutableAtomSet = MutableAtomSet(_strings)
 }
 
-/** This is computed dynamically at QuickJS boot, and depends on build flags. */
+/**
+ * QuickJS's predefined atoms, which are not written into the bytecode's own atom table. An atom id
+ * below `JS_ATOM_END` refers to this list; anything at or above it indexes the table, offset by
+ * this list's size.
+ *
+ * Generated from `quickjs-atom.h`, in enum order, prefixed by `JS_ATOM_NULL`. QuickJS 2021-03-27
+ * gated some of these behind CONFIG_BIGNUM and CONFIG_ATOMICS, which this build does not define,
+ * so the list was 210 entries; QuickJS 2026-06-04 defines all of them unconditionally, making it
+ * 243. Getting this length wrong silently misreads every atom reference in a
+ * bundle, so it must be regenerated whenever the engine is upgraded.
+ */
 private val BUILT_IN_ATOMS: List<JsString> = listOf(
   // JS_ATOM_NULL
   "\u0000",
@@ -123,10 +133,14 @@ private val BUILT_IN_ATOMS: List<JsString> = listOf(
   "yield",
   "await",
   "",
+  "keys",
+  "size",
   "length",
   "fileName",
   "lineNumber",
+  "columnNumber",
   "message",
+  "cause",
   "errors",
   "stack",
   "name",
@@ -188,6 +202,7 @@ private val BUILT_IN_ATOMS: List<JsString> = listOf(
   "global",
   "unicode",
   "raw",
+  "rawJSON",
   "new.target",
   "this.active_func",
   "<home_object>",
@@ -211,13 +226,30 @@ private val BUILT_IN_ATOMS: List<JsString> = listOf(
   "async",
   "exec",
   "groups",
+  "indices",
   "status",
   "reason",
   "globalThis",
+  "bigint",
+  "-0",
+  "Infinity",
+  "-Infinity",
+  "NaN",
+  "hasIndices",
+  "ignoreCase",
+  "multiline",
+  "dotAll",
+  "sticky",
+  "unicodeSets",
   "not-equal",
   "timed-out",
   "ok",
+  "toISOString",
+  "alphabet",
+  "lastChunkHandling",
+  "omitPadding",
   "toJSON",
+  "maxByteLength",
   "Object",
   "Array",
   "Error",
@@ -242,13 +274,23 @@ private val BUILT_IN_ATOMS: List<JsString> = listOf(
   "Uint16Array",
   "Int32Array",
   "Uint32Array",
+  "BigInt64Array",
+  "BigUint64Array",
+  "Float16Array",
   "Float32Array",
   "Float64Array",
   "DataView",
+  "BigInt",
+  "WeakRef",
+  "FinalizationRegistry",
   "Map",
   "Set",
   "WeakMap",
   "WeakSet",
+  "Iterator",
+  "Iterator Helper",
+  "Iterator Concat",
+  "Iterator Wrap",
   "Map Iterator",
   "Set Iterator",
   "Array Iterator",
@@ -271,7 +313,7 @@ private val BUILT_IN_ATOMS: List<JsString> = listOf(
   "TypeError",
   "URIError",
   "InternalError",
-  // Symbols:
+  "AggregateError",
   "<brand>",
   "Symbol.toPrimitive",
   "Symbol.iterator",

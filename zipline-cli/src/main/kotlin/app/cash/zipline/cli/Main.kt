@@ -17,8 +17,6 @@
 
 package app.cash.zipline.cli
 
-import app.cash.zipline.cli.ValidateZiplineApi.Companion.NAME_CHECK
-import app.cash.zipline.cli.ValidateZiplineApi.Companion.NAME_DUMP
 import com.github.ajalt.clikt.core.NoOpCliktCommand
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.core.subcommands
@@ -34,8 +32,6 @@ fun main(vararg args: String) {
       Compile(),
       Download(),
       GenerateKeyPair(),
-      ValidateZiplineApi(NAME_CHECK),
-      ValidateZiplineApi(NAME_DUMP),
     )
     .versionOption(BuildConfig.VERSION)
     .main(args)
