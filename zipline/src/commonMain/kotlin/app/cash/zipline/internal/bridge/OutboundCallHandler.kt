@@ -113,7 +113,11 @@ internal class OutboundCallHandler(
       !is SuspendCallback<*> -> endpoint.eventListener.callStart(externalCall)
       else -> Unit // Don't call callStart() for suspend callbacks.
     }
-    val encodedResult = endpoint.outboundChannel.call(externalCall.encodedCall)
+    val encodedResult = endpoint.outboundChannel.call(
+      externalCall.encodedCall,
+      endpoint.callCodec.takeEncodedBuffers(),
+    )
+    endpoint.callCodec.setDecodingBuffers(endpoint.outboundChannel.takeResultBuffers())
     return endpoint.withTakeScope(scope) {
       val callResult = endpoint.callCodec.decodeResult(resultSerializer, encodedResult)
       when (service) {
@@ -179,7 +183,11 @@ internal class OutboundCallHandler(
     suspendCallback.externalCall = externalCall
     suspendCallback.callStart = endpoint.eventListener.callStart(externalCall)
 
-    val resultOrCallbackJson = endpoint.outboundChannel.call(externalCall.encodedCall)
+    val resultOrCallbackJson = endpoint.outboundChannel.call(
+      externalCall.encodedCall,
+      endpoint.callCodec.takeEncodedBuffers(),
+    )
+    endpoint.callCodec.setDecodingBuffers(endpoint.outboundChannel.takeResultBuffers())
     val encodedResultOrCallback = endpoint.withTakeScope(scope) {
       endpoint.callCodec.decodeResultOrCallback(resultOrCallbackSerializer, resultOrCallbackJson)
     }

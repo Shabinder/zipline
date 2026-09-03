@@ -29,14 +29,15 @@ InboundCallChannel::~InboundCallChannel() {
 }
 
 jstring InboundCallChannel::call(Context *context, JNIEnv* env,
-                                      jstring callJson) const {
+                                      jstring callJson, jobjectArray buffers) const {
   JSContext *jsContext = context->jsContext;
   JSValue global = JS_GetGlobalObject(jsContext);
   JSValue thisPointer = JS_GetProperty(jsContext, global, nameAtom);
-  JSValueConst arguments[1];
+  JSValueConst arguments[2];
   arguments[0] = context->toJsString(env, callJson);
+  arguments[1] = context->toJsInt8ArrayArray(env, buffers);
 
-  JSValue jsResult = JS_Invoke(jsContext, thisPointer, context->callAtom, 1, arguments);
+  JSValue jsResult = JS_Invoke(jsContext, thisPointer, context->callAtom, 2, arguments);
   jstring javaResult;
   auto tag = JS_VALUE_GET_NORM_TAG(jsResult);
   if (tag == JS_TAG_EXCEPTION) {
@@ -48,7 +49,29 @@ jstring InboundCallChannel::call(Context *context, JNIEnv* env,
     assert(false); // Unexpected tag.
   }
 
+  JS_FreeValue(jsContext, arguments[1]);
   JS_FreeValue(jsContext, arguments[0]);
+  JS_FreeValue(jsContext, jsResult);
+  JS_FreeValue(jsContext, thisPointer);
+  JS_FreeValue(jsContext, global);
+
+  return javaResult;
+}
+
+jobjectArray InboundCallChannel::takeResultBuffers(Context *context, JNIEnv* env) const {
+  JSContext *jsContext = context->jsContext;
+  JSValue global = JS_GetGlobalObject(jsContext);
+  JSValue thisPointer = JS_GetProperty(jsContext, global, nameAtom);
+
+  JSValue jsResult = JS_Invoke(jsContext, thisPointer, context->takeResultBuffersAtom, 0, nullptr);
+  jobjectArray javaResult;
+  if (JS_VALUE_GET_NORM_TAG(jsResult) == JS_TAG_EXCEPTION) {
+    context->throwJsException(env, jsResult);
+    javaResult = nullptr;
+  } else {
+    javaResult = context->toJavaByteArrayArray(env, jsResult);
+  }
+
   JS_FreeValue(jsContext, jsResult);
   JS_FreeValue(jsContext, thisPointer);
   JS_FreeValue(jsContext, global);

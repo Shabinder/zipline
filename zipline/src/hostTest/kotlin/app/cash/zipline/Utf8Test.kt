@@ -73,11 +73,14 @@ class Utf8Test {
       )
       quickjs.evaluate("formatter.format();")
     }
-    val expectedSubstring = when {
-      isJni -> "JavaScript.f1(a\uD83D\uDC1Dcdefg.js:4)"
-      else -> "at f1 (a\uD83D\uDC1Dcdefg.js:4)"
+    if (isJni) {
+      assertThat(t.stackTraceToString())
+        .contains("JavaScript.f1(a\uD83D\uDC1Dcdefg.js:4)")
+    } else {
+      // QuickJS 2026 reports a column as well as a line for Native frames.
+      assertThat(t.stackTraceToString())
+        .contains("at f1 (a\uD83D\uDC1Dcdefg.js:4:3)")
     }
-    assertThat(t.stackTraceToString()).contains(expectedSubstring)
   }
 
   @Test

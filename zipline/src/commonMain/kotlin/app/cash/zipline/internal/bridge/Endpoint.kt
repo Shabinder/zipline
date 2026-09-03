@@ -68,7 +68,7 @@ internal class Endpoint internal constructor(
     serializersModule = SerializersModule {
       contextual(PassByReference::class, PassByReferenceSerializer(this@Endpoint))
       contextual(Throwable::class, ThrowableSerializer)
-      contextual(ByteArray::class, Base64ByteArraySerializer)
+      contextual(ByteArray::class, ZiplineBufferSerializer(this@Endpoint))
       contextual(Long::class, LongSerializer)
       contextual(Flow::class) { serializers ->
         FlowSerializer(
@@ -93,7 +93,8 @@ internal class Endpoint internal constructor(
   internal val callCodec = CallCodec(this)
 
   val inboundChannel = object : CallChannel {
-    override fun call(callJson: String): String {
+    override fun call(callJson: String, buffers: Array<ByteArray>): String {
+      callCodec.setDecodingBuffers(buffers)
       val internalCall = callCodec.decodeCall(callJson)
       val inboundService = internalCall.inboundService!!
       val externalCall = callCodec.lastInboundCall!!
@@ -110,6 +111,8 @@ internal class Endpoint internal constructor(
         )
       }
     }
+
+    override fun takeResultBuffers(): Array<ByteArray> = callCodec.takeEncodedBuffers()
 
     override fun disconnect(instanceName: String): Boolean {
       return remove(instanceName) != null

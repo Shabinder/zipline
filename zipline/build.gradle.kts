@@ -28,6 +28,7 @@ val copyTestingJs = tasks.register<Copy>("copyTestingJs") {
   destinationDir = rootProject.layout.buildDirectory.dir("generated/testingJs").get().asFile
   from(rootDir.resolve("zipline-testing/build/compileSync/js/main/developmentLibrary/kotlin"))
 }
+
 tasks.withType<KotlinNativeTest>().configureEach {
   dependsOn(":zipline-testing:compileDevelopmentLibraryKotlinJs")
 }
@@ -133,19 +134,63 @@ kotlin {
     targets.withType<KotlinNativeTarget> {
       val main by compilations.getting
 
+      // cklib 0.3.5 still compiles the correct per-target LLVM bitcode with Kotlin 2.4, but its
+      // removed -Xinclude-binary integration leaves published cinterop KLIBs with an empty
+      // `included/` directory. Archive that same target bitcode and use Kotlin cinterop's
+      // supported static-library packaging so consumers link the exact QuickJS ABI represented
+      // by these headers. See https://kotlinlang.org/docs/native-definition-file.html#properties.
+      val targetName = this@withType.name
+      val targetTitle = targetName.replaceFirstChar { it.titlecase() }
+      val quickJsBitcode = layout.buildDirectory.file(
+        "cklib/quickjs/${konanTarget.name}/quickjs.bc",
+      )
+      val quickJsArchiveDirectory = layout.buildDirectory.dir(
+        "native-static/${konanTarget.name}",
+      )
+      val quickJsArchive = quickJsArchiveDirectory.map { it.file("libquickjs.a") }
+      val archiveQuickJs = tasks.register<Exec>("archive${targetTitle}QuickJs") {
+        dependsOn("${targetName}Quickjs")
+        inputs.file(quickJsBitcode)
+        outputs.file(quickJsArchive)
+        doFirst {
+          quickJsArchiveDirectory.get().asFile.mkdirs()
+        }
+        commandLine(
+          "/usr/bin/ar",
+          "rcs",
+          quickJsArchive.get().asFile.absolutePath,
+          quickJsBitcode.get().asFile.absolutePath,
+        )
+      }
+
       main.cinterops {
         create("quickjs") {
+          // Keep quickjs.def's noStringConversion rules when adding the target archive below.
+          // Without an explicit definition file Kotlin 2.4 regenerates JS_Eval with String
+          // parameters, while QuickJs.kt intentionally passes UTF-8 byte buffers.
+          defFile(file("src/nativeInterop/cinterop/quickjs.def"))
           header(file("native/quickjs/quickjs.h"))
           header(file("native/common/context-no-eval.h"))
           header(file("native/common/finalization-registry.h"))
           header(file("native/common/global-gc.h"))
           packageName("app.cash.zipline.quickjs")
+          extraOpts(
+            "-libraryPath",
+            quickJsArchiveDirectory.get().asFile.absolutePath,
+            "-staticLibrary",
+            quickJsArchive.get().asFile.name,
+          )
         }
+      }
+
+      tasks.named("cinteropQuickjs${targetTitle}") {
+        dependsOn(archiveQuickJs)
       }
 
       binaries.withType<Framework> {
         linkerOpts += "-lsqlite3"
       }
+
     }
 
     targets.withType<KotlinNativeTargetWithTests<*>> {
@@ -159,6 +204,14 @@ kotlin {
         }
       }
     }
+  }
+}
+
+// Benchmarks are measurements, not checks: their large lanes cost seconds per run, and leaving them
+// in the default suite took :zipline:jvmTest past an hour. Run them with -Pbenchmarks.
+tasks.withType<Test>().configureEach {
+  if (!project.hasProperty("benchmarks")) {
+    exclude("bench/**")
   }
 }
 

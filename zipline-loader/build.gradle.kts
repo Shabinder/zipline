@@ -45,6 +45,7 @@ kotlin {
     val jniMain by creating {
       dependsOn(commonMain)
       dependencies {
+        implementation(libs.brotli.dec)
         implementation(libs.okHttp.core)
       }
     }
@@ -63,6 +64,7 @@ kotlin {
     }
     val nativeMain by getting {
       dependencies {
+        implementation(libs.kompressor.brotli)
         implementation(libs.sqldelight.driver.native)
       }
     }

@@ -40,23 +40,29 @@ internal fun <T : Any> SerializersModule.requireContextual(
 }
 
 /**
- * Experiment: a `@Contextual ByteArray` parameter, encoded as base64 rather than as a JSON array of
- * numbers. This exists to prove the contextual hook reaches a `ByteArray` argument at all, which is
- * what a real binary side-channel would need.
+ * Carries a `ByteArray` beside the JSON rather than inside it.
+ *
+ * The JSON holds an index; the bytes travel as an `Int8Array` the engine received with one memcpy.
+ * Encoding appends to the codec's buffer list as a side effect of serialization, which is the same
+ * trick `PassByReferenceSerializer` uses to collect service names.
+ *
+ * The measurements this replaces are in `Docs/RESEARCH/zipline-binary-bridge.md`: as text, 256 KB
+ * cost 1,227 ms to cross and come back.
  */
-@OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-internal object Base64ByteArraySerializer : KSerializer<ByteArray> {
+internal class ZiplineBufferSerializer(
+  private val endpoint: Endpoint,
+) : KSerializer<ByteArray> {
   override val descriptor =
     kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
-      "app.cash.zipline.Base64ByteArray",
-      kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+      "app.cash.zipline.Buffer",
+      kotlinx.serialization.descriptors.PrimitiveKind.INT,
     )
 
   override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: ByteArray) {
-    encoder.encodeString(kotlin.io.encoding.Base64.encode(value))
+    encoder.encodeInt(endpoint.callCodec.addBuffer(value))
   }
 
   override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): ByteArray {
-    return kotlin.io.encoding.Base64.decode(decoder.decodeString())
+    return endpoint.callCodec.buffer(decoder.decodeInt())
   }
 }

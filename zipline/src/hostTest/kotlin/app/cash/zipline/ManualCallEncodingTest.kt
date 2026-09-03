@@ -46,7 +46,8 @@ internal class ManualCallEncodingTest {
     endpointA.bind<EchoService>("helloService", service)
 
     val responseJson = endpointB.outboundChannel.call(
-      """
+      buffers = emptyArray(),
+      callJson = """
       |{
       |  "service": "helloService",
       |  "function": "${"fun echo(app.cash.zipline.testing.EchoRequest): app.cash.zipline.testing.EchoResponse".signatureHash()}",
@@ -86,7 +87,8 @@ internal class ManualCallEncodingTest {
     endpointA.bind<SendService>("service", service)
 
     val responseJson = endpointB.outboundChannel.call(
-      """
+      buffers = emptyArray(),
+      callJson = """
       |{
       |  "service": "service",
       |  "function": "${"fun send(app.cash.zipline.ManualCallEncodingTest.MessageWithDefaults): kotlin.Unit".signatureHash()}",
@@ -124,7 +126,8 @@ internal class ManualCallEncodingTest {
     endpointA.bind<ReceiveService>("service", service)
 
     val responseJson = endpointB.outboundChannel.call(
-      """
+      buffers = emptyArray(),
+      callJson = """
       |{
       |  "service": "service",
       |  "function": "${"fun receive(): app.cash.zipline.ManualCallEncodingTest.MessageWithDefaults".signatureHash()}",
@@ -160,7 +163,8 @@ internal class ManualCallEncodingTest {
     endpointA.bind<MapService>("service", service)
 
     val responseJson = endpointB.outboundChannel.call(
-      """
+      buffers = emptyArray(),
+      callJson = """
       |{
       |  "service": "service",
       |  "function": "${"fun flip(kotlin.collections.Map<kotlin.collections.List<kotlin.String>,kotlin.collections.List<kotlin.Int>>): kotlin.collections.Map<kotlin.collections.List<kotlin.Int>,kotlin.collections.List<kotlin.String>>".signatureHash()}",

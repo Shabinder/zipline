@@ -21,13 +21,23 @@ internal class JniCallChannel(
   private val quickJs: QuickJs,
   private val instance: Long,
 ) : CallChannel {
-  override fun call(callJson: String) = call(quickJs.context, instance, callJson)
+  override fun call(callJson: String, buffers: Array<ByteArray>) =
+    call(quickJs.context, instance, callJson, buffers)
 
   private external fun call(
     context: Long,
     instance: Long,
     callJson: String,
+    buffers: Array<ByteArray>,
   ): String
+
+  override fun takeResultBuffers(): Array<ByteArray> =
+    takeResultBuffers(quickJs.context, instance)
+
+  private external fun takeResultBuffers(
+    context: Long,
+    instance: Long,
+  ): Array<ByteArray>
 
   override fun disconnect(instanceName: String): Boolean = disconnect(quickJs.context, instance, instanceName)
 

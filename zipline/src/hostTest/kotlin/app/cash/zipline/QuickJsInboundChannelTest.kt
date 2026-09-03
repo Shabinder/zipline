@@ -60,7 +60,7 @@ class QuickJsInboundChannelTest {
     )
 
     val inboundChannel = quickJs.getInboundChannel()
-    val result = inboundChannel.call("firstArg")
+    val result = inboundChannel.call("firstArg", emptyArray())
     assertEquals("received call(firstArg) and the call was successful!", result)
   }
 
@@ -83,7 +83,7 @@ class QuickJsInboundChannelTest {
 
     val inboundChannel = quickJs.getInboundChannel()
     assertTrue(inboundChannel.disconnect("service one"))
-    val result = inboundChannel.call("")
+    val result = inboundChannel.call("", emptyArray())
     assertEquals("disconnect(service one)", result)
   }
 

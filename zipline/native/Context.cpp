@@ -73,6 +73,7 @@ Context::Context(JNIEnv* env)
       outboundCallChannelClassId(0),
       lengthAtom(JS_NewAtom(jsContext, "length")),
       callAtom(JS_NewAtom(jsContext, "call")),
+      takeResultBuffersAtom(JS_NewAtom(jsContext, "takeResultBuffers")),
       disconnectAtom(JS_NewAtom(jsContext, "disconnect")),
       booleanClass(static_cast<jclass>(env->NewGlobalRef(env->FindClass("java/lang/Boolean")))),
       integerClass(static_cast<jclass>(env->NewGlobalRef(env->FindClass("java/lang/Integer")))),
@@ -125,6 +126,7 @@ Context::~Context() {
   env->DeleteGlobalRef(booleanClass);
   JS_FreeAtom(jsContext, lengthAtom);
   JS_FreeAtom(jsContext, callAtom);
+  JS_FreeAtom(jsContext, takeResultBuffersAtom);
   JS_FreeAtom(jsContext, disconnectAtom);
   JS_FreeContext(jsContext);
   JS_FreeContext(jsContextForCompiling);
@@ -514,6 +516,94 @@ std::string Context::toCppString(JNIEnv* env, jstring string) const {
   std::string result = std::string(reinterpret_cast<char*>(utf8Bytes), utf8Length);
   env->ReleaseByteArrayElements(utf8BytesObject, utf8Bytes, JNI_ABORT);
   env->DeleteLocalRef(utf8BytesObject);
+  return result;
+}
+
+JSValue Context::toJsInt8ArrayArray(JNIEnv* env, jobjectArray buffers) const {
+  JSValue result = JS_NewArray(jsContext);
+  if (buffers == nullptr) {
+    return result;
+  }
+
+  const jsize count = env->GetArrayLength(buffers);
+  for (jsize i = 0; i < count; i++) {
+    jbyteArray element = static_cast<jbyteArray>(env->GetObjectArrayElement(buffers, i));
+    const jsize length = element != nullptr ? env->GetArrayLength(element) : 0;
+
+    JSValue arrayBuffer;
+    if (length > 0) {
+      jbyte* bytes = env->GetByteArrayElements(element, nullptr);
+      arrayBuffer = JS_NewArrayBufferCopy(jsContext,
+                                          reinterpret_cast<const uint8_t*>(bytes),
+                                          static_cast<size_t>(length));
+      env->ReleaseByteArrayElements(element, bytes, JNI_ABORT);
+    } else {
+      arrayBuffer = JS_NewArrayBufferCopy(jsContext, nullptr, 0);
+    }
+
+    // Three arguments, not one. Given an ArrayBuffer, js_typed_array_constructor reads argv[1] as
+    // the byte offset and argv[2] as the length without checking argc, so a shorter call reads
+    // whatever is next in memory - which silently produced zero-length arrays.
+    JSValue args[3] = { arrayBuffer, JS_NewInt32(jsContext, 0), JS_UNDEFINED };
+    JSValue int8Array = JS_NewTypedArray(jsContext, 3, args, JS_TYPED_ARRAY_INT8);
+    JS_FreeValue(jsContext, arrayBuffer);
+    JS_SetPropertyUint32(jsContext, result, static_cast<uint32_t>(i), int8Array);
+
+    if (element != nullptr) {
+      env->DeleteLocalRef(element);
+    }
+  }
+  return result;
+}
+
+jobjectArray Context::toJavaByteArrayArray(JNIEnv* env, const JSValueConst& value) const {
+  uint32_t count = 0;
+  JSValue lengthValue = JS_GetPropertyStr(jsContext, value, "length");
+  if (!JS_IsUndefined(lengthValue)) {
+    JS_ToUint32(jsContext, &count, lengthValue);
+  }
+  JS_FreeValue(jsContext, lengthValue);
+
+  jclass byteArrayClass = env->FindClass("[B");
+  jobjectArray result = env->NewObjectArray(static_cast<jsize>(count), byteArrayClass, nullptr);
+
+  for (uint32_t i = 0; i < count; i++) {
+    JSValue element = JS_GetPropertyUint32(jsContext, value, i);
+
+    size_t byteOffset = 0;
+    size_t byteLength = 0;
+    size_t bytesPerElement = 0;
+    JSValue arrayBuffer = JS_GetTypedArrayBuffer(jsContext, element, &byteOffset, &byteLength,
+                                                 &bytesPerElement);
+    if (JS_IsException(arrayBuffer)) {
+      JS_FreeValue(jsContext, element);
+      throwJavaException(env, "java/lang/IllegalStateException",
+                         "expected a typed array in the buffer list at index %d", i);
+      return nullptr;
+    }
+
+    size_t size = 0;
+    uint8_t* data = JS_GetArrayBuffer(jsContext, &size, arrayBuffer);
+    if (data == nullptr && byteLength > 0) {
+      JS_FreeValue(jsContext, arrayBuffer);
+      JS_FreeValue(jsContext, element);
+      throwJavaException(env, "java/lang/IllegalStateException",
+                         "the guest handed back a detached ArrayBuffer at index %d", i);
+      return nullptr;
+    }
+
+    jbyteArray bytes = env->NewByteArray(static_cast<jsize>(byteLength));
+    if (byteLength > 0) {
+      env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(byteLength),
+                              reinterpret_cast<const jbyte*>(data + byteOffset));
+    }
+    env->SetObjectArrayElement(result, static_cast<jsize>(i), bytes);
+    env->DeleteLocalRef(bytes);
+
+    JS_FreeValue(jsContext, arrayBuffer);
+    JS_FreeValue(jsContext, element);
+  }
+
   return result;
 }
 

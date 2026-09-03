@@ -31,7 +31,19 @@ internal interface CallChannel {
    * Kotlin/JS.
    */
   @JsName("call")
-  fun call(callJson: String): String
+  fun call(callJson: String, buffers: Array<ByteArray>): String
+
+  /**
+   * Buffers produced while encoding the result of the call that just returned, drained immediately
+   * after [call] and before that result is decoded.
+   *
+   * Results cannot ride back inside [call]'s return value without a struct return in three
+   * different hosts, so they are fetched with a second, trivial crossing. It is only ever called
+   * synchronously after [call], which is what keeps nested calls from stealing each other's
+   * buffers: an inner call has already drained its own by the time the outer one returns.
+   */
+  @JsName("takeResultBuffers")
+  fun takeResultBuffers(): Array<ByteArray>
 
   /**
    * Remove [instanceName] from the receiver. After making this call it is an error to make calls
