@@ -51,9 +51,11 @@ fun newEndpointPair(
       userSerializersModule = serializersModule,
       eventListener = listenerA,
       outboundChannel = object : CallChannel {
-        override fun call(callJson: String): String {
-          return b.inboundChannel.call(callJson)
+        override fun call(callJson: String, buffers: Array<ByteArray>): String {
+          return b.inboundChannel.call(callJson, buffers)
         }
+
+        override fun takeResultBuffers(): Array<ByteArray> = b.inboundChannel.takeResultBuffers()
 
         override fun disconnect(instanceName: String): Boolean {
           return b.inboundChannel.disconnect(instanceName)

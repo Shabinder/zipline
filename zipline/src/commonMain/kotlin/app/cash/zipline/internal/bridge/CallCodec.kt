@@ -37,6 +37,43 @@ internal class CallCodec(
   /** This list collects service names as they're decoded, including members of other types. */
   val decodedServiceNames = mutableListOf<String>()
 
+  /**
+   * Binary payloads for the message being written, collected as a side effect of serialization the
+   * same way [decodedServiceNames] is. Drained by the channel and carried beside the JSON.
+   */
+  private val encodingBuffers = mutableListOf<ByteArray>()
+
+  /** Binary payloads that arrived beside the message being read. */
+  private var decodingBuffers: Array<ByteArray> = emptyArray()
+
+  /**
+   * Both of the above are single slots rather than stacks, which is safe because a message is
+   * always fully decoded before the call it describes is dispatched: by the time a service body
+   * can make a reentrant call, nothing needs the buffers that arrived with its own arguments.
+   */
+  internal fun addBuffer(value: ByteArray): Int {
+    encodingBuffers += value
+    return encodingBuffers.size - 1
+  }
+
+  internal fun buffer(index: Int): ByteArray {
+    check(index in decodingBuffers.indices) {
+      "no buffer $index in a message carrying ${decodingBuffers.size}"
+    }
+    return decodingBuffers[index]
+  }
+
+  internal fun takeEncodedBuffers(): Array<ByteArray> {
+    if (encodingBuffers.isEmpty()) return emptyArray()
+    val result = encodingBuffers.toTypedArray()
+    encodingBuffers.clear()
+    return result
+  }
+
+  internal fun setDecodingBuffers(buffers: Array<ByteArray>) {
+    decodingBuffers = buffers
+  }
+
   /** This list collects service names as they're encoded, including members of other types. */
   val encodedServiceNames = mutableListOf<String>()
 

@@ -60,13 +60,15 @@ actual class Zipline private constructor(
         quickJs.getInboundChannel()
       }
 
-      override fun call(callJson: String): String {
+      override fun call(callJson: String, buffers: Array<ByteArray>): String {
         check(scope.isActive) { "Zipline closed" }
-        val result = jsInboundBridge.call(callJson)
+        val result = jsInboundBridge.call(callJson, buffers)
         // Process any pending Promise microtasks after JS execution
         quickJs.executePendingJobs()
         return result
       }
+
+      override fun takeResultBuffers(): Array<ByteArray> = jsInboundBridge.takeResultBuffers()
 
       override fun disconnect(instanceName: String): Boolean {
         return jsInboundBridge.disconnect(instanceName)

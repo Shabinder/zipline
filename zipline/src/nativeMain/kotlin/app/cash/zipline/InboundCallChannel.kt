@@ -35,27 +35,49 @@ internal class InboundCallChannel(
 ) : CallChannel {
   private val context = quickJs.context
 
-  override fun call(callJson: String): String {
+  override fun call(callJson: String, buffers: Array<ByteArray>): String {
     quickJs.checkNotClosed()
 
     val globalThis = JS_GetGlobalObject(context)
     val inboundChannel = JS_GetPropertyStr(context, globalThis, INBOUND_CHANNEL_NAME)
     val property = JS_NewAtom(context, "call")
     val arg0 = JS_NewString(context, callJson.utf8)
+    val arg1 = with(quickJs) { buffers.toJsInt8ArrayArray() }
 
     val jsResult = memScoped {
-      val args = allocArrayOf(arg0)
-      JS_Invoke(context, inboundChannel, property, 1, args)
+      val args = allocArrayOf(arg0, arg1)
+      JS_Invoke(context, inboundChannel, property, 2, args)
     }
     val kotlinResult = with(quickJs) { jsResult.toKotlinInstanceOrNull() } as String
 
     JS_FreeValue(context, jsResult)
+    JS_FreeValue(context, arg1)
     JS_FreeValue(context, arg0)
     JS_FreeAtom(context, property)
     JS_FreeValue(context, inboundChannel)
     JS_FreeValue(context, globalThis)
 
     return kotlinResult
+  }
+
+  override fun takeResultBuffers(): Array<ByteArray> {
+    quickJs.checkNotClosed()
+
+    val globalThis = JS_GetGlobalObject(context)
+    val inboundChannel = JS_GetPropertyStr(context, globalThis, INBOUND_CHANNEL_NAME)
+    val property = JS_NewAtom(context, "takeResultBuffers")
+
+    val jsResult = memScoped {
+      JS_Invoke(context, inboundChannel, property, 0, null)
+    }
+    val result = with(quickJs) { jsResult.toKotlinByteArrayArray() }
+
+    JS_FreeValue(context, jsResult)
+    JS_FreeAtom(context, property)
+    JS_FreeValue(context, inboundChannel)
+    JS_FreeValue(context, globalThis)
+
+    return result
   }
 
   override fun disconnect(instanceName: String): Boolean {

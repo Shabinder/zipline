@@ -21,6 +21,8 @@ import app.cash.zipline.ZiplineManifest
 import app.cash.zipline.loader.internal.fetcher.FsCachingFetcher
 import app.cash.zipline.loader.internal.fetcher.FsEmbeddedFetcher
 import app.cash.zipline.loader.internal.fetcher.HttpFetcher
+import app.cash.zipline.loader.internal.fetcher.HttpFetcher.Companion.BROTLI_URL_SUFFIX
+import app.cash.zipline.loader.internal.fetcher.HttpFetcher.Companion.GZIP_URL_SUFFIX
 import app.cash.zipline.loader.internal.fetcher.LoadedManifest
 import app.cash.zipline.loader.internal.fetcher.fetch
 import app.cash.zipline.loader.internal.getApplicationManifestFileName
@@ -45,6 +47,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.modules.EmptySerializersModule
 import kotlinx.serialization.modules.SerializersModule
+import okio.ByteString
 import okio.FileSystem
 import okio.Path
 
@@ -611,6 +614,7 @@ class ZiplineLoader internal constructor(
           baseUrl = loadedManifest.manifest.baseUrl,
           nowEpochMs = nowEpochMs,
           module = it.value,
+          moduleCompressions = moduleCompressions(loadedManifest.manifest.metadata),
           receiver = receiver,
         )
       }
@@ -630,6 +634,7 @@ class ZiplineLoader internal constructor(
     val id: String,
     val baseUrl: String?,
     val module: ZiplineManifest.Module,
+    val moduleCompressions: List<String>,
     val receiver: Receiver,
     val nowEpochMs: Long,
   ) {
@@ -639,16 +644,22 @@ class ZiplineLoader internal constructor(
      * Fetch and receive ZiplineFile module.
      */
     suspend fun run() {
-      val byteString = moduleFetchers.fetch(
-        concurrentDownloadsSemaphore = concurrentDownloadsSemaphore,
-        applicationName = applicationName,
-        eventListener = eventListener,
-        id = id,
-        sha256 = module.sha256,
-        nowEpochMs = nowEpochMs,
-        baseUrl = baseUrl,
-        url = module.url,
-      )!!
+      var byteString: ByteString? = null
+      for (compression in moduleCompressions) {
+        val suffix = when (compression) {
+          MODULE_COMPRESSION_BROTLI -> BROTLI_URL_SUFFIX
+          MODULE_COMPRESSION_GZIP -> GZIP_URL_SUFFIX
+          else -> continue
+        }
+        try {
+          byteString = fetchModule(module.url + suffix)
+          break
+        } catch (e: Exception) {
+          if (e is CancellationException) throw e
+          // Sidecars and manifests may become visible at slightly different times on a CDN.
+        }
+      }
+      if (byteString == null) byteString = fetchModule(module.url)
       check(byteString.sha256() == module.sha256) {
         "checksum mismatch for $id"
       }
@@ -657,6 +668,34 @@ class ZiplineLoader internal constructor(
         receiver.receive(byteString, id, module.sha256)
       }
     }
+
+    private suspend fun fetchModule(url: String): ByteString = moduleFetchers.fetch(
+      concurrentDownloadsSemaphore = concurrentDownloadsSemaphore,
+      applicationName = applicationName,
+      eventListener = eventListener,
+      id = id,
+      sha256 = module.sha256,
+      nowEpochMs = nowEpochMs,
+      baseUrl = baseUrl,
+      url = url,
+    )!!
+  }
+
+  private companion object {
+    fun moduleCompressions(metadata: Map<String, String>): List<String> {
+      val advertised = metadata[MODULE_COMPRESSIONS_METADATA_KEY]
+        ?.split(',')
+        ?.map(String::trim)
+        ?.filter(String::isNotEmpty)
+        .orEmpty()
+      if (advertised.isNotEmpty()) return advertised
+      return listOfNotNull(metadata[MODULE_COMPRESSION_METADATA_KEY])
+    }
+
+    const val MODULE_COMPRESSIONS_METADATA_KEY = "soundbound.moduleCompressions"
+    const val MODULE_COMPRESSION_METADATA_KEY = "soundbound.moduleCompression"
+    const val MODULE_COMPRESSION_BROTLI = "brotli"
+    const val MODULE_COMPRESSION_GZIP = "gzip"
   }
 
   private suspend fun loadCachedOrEmbeddedManifest(

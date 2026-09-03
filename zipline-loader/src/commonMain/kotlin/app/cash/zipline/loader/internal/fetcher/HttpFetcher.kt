@@ -27,8 +27,11 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import okio.Buffer
 import okio.ByteString
 import okio.ByteString.Companion.encodeUtf8
+import okio.GzipSource
+import okio.buffer
 
 /**
  * Download resources from the network. If the download fails, the exception is reported to
@@ -45,13 +48,27 @@ internal class HttpFetcher(
     nowEpochMs: Long,
     baseUrl: String?,
     url: String,
-  ) = fetchByteString(
-    applicationName = applicationName,
-    eventListener = eventListener,
-    baseUrl = baseUrl,
-    url = url,
-    requestHeaders = ZIPLINE_REQUEST_HEADERS,
-  )
+  ): ByteString {
+    val downloaded = fetchByteString(
+      applicationName = applicationName,
+      eventListener = eventListener,
+      baseUrl = baseUrl,
+      url = url,
+      requestHeaders = ZIPLINE_REQUEST_HEADERS,
+    )
+    return when {
+      url.endsWith(BROTLI_URL_SUFFIX) -> downloaded.decodeBrotli()
+      url.endsWith(GZIP_URL_SUFFIX) -> {
+        val source = GzipSource(Buffer().write(downloaded)).buffer()
+        try {
+          source.readByteString()
+        } finally {
+          source.close()
+        }
+      }
+      else -> downloaded
+    }
+  }
 
   suspend fun fetchManifest(
     applicationName: String,
@@ -138,6 +155,9 @@ internal class HttpFetcher(
   }
 
   companion object {
+    const val BROTLI_URL_SUFFIX = ".br"
+    const val GZIP_URL_SUFFIX = ".gz"
+
     /** Headers for the HTTP GET request for the manifest file. */
     val MANIFEST_REQUEST_HEADERS = listOf<Pair<String, String>>()
 

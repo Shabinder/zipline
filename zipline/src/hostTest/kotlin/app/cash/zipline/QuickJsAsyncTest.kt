@@ -117,6 +117,25 @@ class QuickJsAsyncTest {
   }
 
   @Test
+  fun executePendingJobsWithAwaitedImmediateValue() {
+    // BgUtils' BotGuardClient awaits vm.a(...) even when that VM returns an array immediately.
+    // Awaiting a non-Promise must still suspend once and resume from the QuickJS job queue.
+    quickJs.evaluate(
+      """
+      globalThis.result = null;
+      globalThis.runAsync = async function() {
+        globalThis.result = await ['vm-ready']?.[0];
+      };
+      globalThis.runAsync();
+      """,
+    )
+
+    assertEquals(null, quickJs.evaluate("globalThis.result;"))
+    assertTrue(quickJs.executePendingJobs() >= 1)
+    assertEquals("vm-ready", quickJs.evaluate("globalThis.result;"))
+  }
+
+  @Test
   fun executePendingJobsWithMultiplePromises() {
     // Create multiple independent promises
     quickJs.evaluate(
