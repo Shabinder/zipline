@@ -23,9 +23,21 @@ plugins {
   id("com.jakewharton.test-distribution")
 }
 
-val copyTestingJs = tasks.register<Copy>("copyTestingJs") {
+// Ported from cashapp/zipline 1.28 (AGP 9): a DirectoryProperty output lets the Variant API wire
+// these into the Android test resources, since AGP 9 rejects Providers in the SourceSet API.
+internal abstract class CopyTestingJsTask : Copy() {
+  @get:OutputDirectory
+  abstract val destination: DirectoryProperty
+
+  fun configureDestination(destination: Provider<Directory>) {
+    this.destination = destination
+    destinationDir = destination.get().asFile
+  }
+}
+
+internal val copyTestingJs = tasks.register<CopyTestingJsTask>("copyTestingJs") {
   dependsOn(":zipline-testing:compileDevelopmentLibraryKotlinJs")
-  destinationDir = rootProject.layout.buildDirectory.dir("generated/testingJs").get().asFile
+  configureDestination(rootProject.layout.buildDirectory.dir("generated/testingJs"))
   from(rootDir.resolve("zipline-testing/build/compileSync/js/main/developmentLibrary/kotlin"))
 }
 
@@ -244,8 +256,21 @@ cklib {
         "-Wno-sign-compare",
         "-Wno-unused-parameter", /* for windows 32 */
         "-D_Float16=short", // KT-69094
+      ) + listOfNotNull(
+        // cklib's clang 11 wrongly evaluates __is_target_environment(kernelkit) as true, so Apple
+        // SDKs from Xcode 27 on fail in TargetConditionals.h. On such a host pass
+        // -PcklibSdkShim=<dir> holding that header minus its KernelKit guard (see
+        // Docs/ARCHITECTURE/publishing.md in SoundBound). Unset: nothing changes.
+        providers.gradleProperty("cklibSdkShim").orNull?.let { "-I$it" },
       )
     )
+  }
+}
+
+androidComponents {
+  onVariants(selector().withBuildType("release")) { variant ->
+    variant.sources.resources?.addStaticSourceDirectory("src/androidInstrumentationTest/resources/")
+    variant.sources.resources?.addGeneratedSourceDirectory(copyTestingJs, CopyTestingJsTask::destination)
   }
 }
 
@@ -292,22 +317,6 @@ android {
     targetCompatibility = JavaVersion.VERSION_11
   }
 
-  sourceSets {
-    getByName("androidTest") {
-      resources.srcDir("src/androidInstrumentationTest/resources/")
-      resources.srcDir(copyTestingJs)
-    }
-  }
-
-  // The above `resources.srcDir(copyTestingJs)` code is supposed to automatically add a task
-  // dependency, but it doesn't. So we add it ourselves using this nonsense.
-  afterEvaluate {
-    libraryVariants.onEach { libraryVariant ->
-      libraryVariant.testVariant?.processJavaResourcesProvider?.configure {
-        dependsOn(copyTestingJs)
-      }
-    }
-  }
 
   buildTypes {
     val release by getting {
