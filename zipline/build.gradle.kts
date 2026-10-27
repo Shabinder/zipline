@@ -256,6 +256,12 @@ cklib {
         "-Wno-sign-compare",
         "-Wno-unused-parameter", /* for windows 32 */
         "-D_Float16=short", // KT-69094
+      ) + listOfNotNull(
+        // cklib's clang 11 wrongly evaluates __is_target_environment(kernelkit) as true, so Apple
+        // SDKs from Xcode 27 on fail in TargetConditionals.h. On such a host pass
+        // -PcklibSdkShim=<dir> holding that header minus its KernelKit guard (see
+        // Docs/ARCHITECTURE/publishing.md in SoundBound). Unset: nothing changes.
+        providers.gradleProperty("cklibSdkShim").orNull?.let { "-I$it" },
       )
     )
   }
