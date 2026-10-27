@@ -46,21 +46,30 @@ internal class CallCodec(
   /** Binary payloads that arrived beside the message being read. */
   private var decodingBuffers: Array<ByteArray> = emptyArray()
 
-  /**
-   * Both of the above are single slots rather than stacks, which is safe because a message is
-   * always fully decoded before the call it describes is dispatched: by the time a service body
-   * can make a reentrant call, nothing needs the buffers that arrived with its own arguments.
-   */
+  /** Outbound buffers are drained before dispatch; inbound decoding may be reentrant. */
   internal fun addBuffer(value: ByteArray): Int {
     encodingBuffers += value
     return encodingBuffers.size - 1
   }
 
+  private val decodingStack = mutableListOf<Array<ByteArray>>()
+
   internal fun buffer(index: Int): ByteArray {
+    val decodingBuffers = decodingStack.lastOrNull() ?: decodingBuffers
     check(index in decodingBuffers.indices) {
       "no buffer $index in a message carrying ${decodingBuffers.size}"
     }
     return decodingBuffers[index]
+  }
+
+  /** Callback decoding can call Endpoint.take(), whose leak detection makes a reentrant call. */
+  private inline fun <T> decodeMessage(block: () -> T): T {
+    decodingStack += decodingBuffers
+    try {
+      return block()
+    } finally {
+      decodingStack.removeAt(decodingStack.lastIndex)
+    }
   }
 
   internal fun takeEncodedBuffers(): Array<ByteArray> {
@@ -113,7 +122,7 @@ internal class CallCodec(
     callJson: String,
   ): InternalCall {
     decodedServiceNames.clear()
-    val internalCall = endpoint.json.decodeFromStringFast(callSerializer, callJson)
+    val internalCall = decodeMessage { endpoint.json.decodeFromStringFast(callSerializer, callJson) }
     val inboundService = internalCall.inboundService
       ?: error("no handler for ${internalCall.serviceName}")
     lastInboundCall = Call(
@@ -158,7 +167,7 @@ internal class CallCodec(
     resultJson: String,
   ): CallResult {
     decodedServiceNames.clear()
-    val result = endpoint.json.decodeFromStringFast(serializer, resultJson)
+    val result = decodeMessage { endpoint.json.decodeFromStringFast(serializer, resultJson) }
     return CallResult(result.result!!, resultJson, decodedServiceNames)
   }
 
@@ -167,7 +176,7 @@ internal class CallCodec(
     resultOrCallbackJson: String,
   ): EncodedResultOrCallback {
     decodedServiceNames.clear()
-    val result = endpoint.json.decodeFromStringFast(serializer, resultOrCallbackJson)
+    val result = decodeMessage { endpoint.json.decodeFromStringFast(serializer, resultOrCallbackJson) }
     return EncodedResultOrCallback(result, resultOrCallbackJson, decodedServiceNames)
   }
 }

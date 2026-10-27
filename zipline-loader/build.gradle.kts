@@ -19,16 +19,16 @@ kotlin {
     publishLibraryVariants("release")
   }
   if (false) {
-    linuxX64()
+    if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) linuxX64()
   }
-  macosX64()
-  macosArm64()
-  iosArm64()
-  iosX64()
-  iosSimulatorArm64()
-  tvosArm64()
-  tvosSimulatorArm64()
-  tvosX64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) macosX64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) macosArm64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) iosArm64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) iosX64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) iosSimulatorArm64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) tvosArm64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) tvosSimulatorArm64()
+  if (!providers.gradleProperty("ziplineJvmJsOnly").isPresent) tvosX64()
 
   applyDefaultHierarchyTemplate()
 
@@ -62,7 +62,7 @@ kotlin {
         implementation(libs.sqldelight.driver.android)
       }
     }
-    val nativeMain by getting {
+    val nativeMain = maybeCreate("nativeMain").apply {
       dependencies {
         implementation(libs.kompressor.brotli)
         implementation(libs.sqldelight.driver.native)
@@ -99,7 +99,7 @@ kotlin {
       }
     }
 
-    val nativeTest by getting {
+    val nativeTest = maybeCreate("nativeTest").apply {
       dependencies {
         implementation(projects.ziplineLoaderTesting)
       }

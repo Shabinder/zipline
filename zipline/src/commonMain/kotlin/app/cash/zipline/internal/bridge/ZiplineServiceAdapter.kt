@@ -38,7 +38,10 @@ internal abstract class ZiplineServiceAdapter<T : ZiplineService> : KSerializer<
   abstract val serialName: String
   abstract val simpleName: String
 
-  override val descriptor = contextualSerializer.descriptor
+  // Generic callback cache keys must distinguish service types, including nullable
+  // and collection wrappers. The wire representation remains PassByReference.
+  override val descriptor: SerialDescriptor
+    get() = SerialDescriptor(serialName, contextualSerializer.descriptor)
 
   abstract fun ziplineFunctions(
     serializersModule: SerializersModule,
