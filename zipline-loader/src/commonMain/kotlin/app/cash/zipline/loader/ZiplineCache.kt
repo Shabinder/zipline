@@ -28,6 +28,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.Volatile
 import okio.ByteString
 import okio.ByteString.Companion.decodeHex
 import okio.Closeable
@@ -60,6 +61,8 @@ class ZiplineCache private constructor(
   private val loaderEventListener: LoaderEventListener,
   private var hasWriteFailures: Boolean,
 ) : Closeable {
+
+  @Volatile private var closed: Boolean = false
 
   /*
    * Files are named by their SHA-256 hashes. We use a SQLite database for file metadata: which
@@ -94,6 +97,7 @@ class ZiplineCache private constructor(
   private val inFlightMutex = Mutex()
 
   override fun close() {
+    closed = true
     driver.close()
   }
 
@@ -104,14 +108,14 @@ class ZiplineCache private constructor(
     nowEpochMs: Long,
     isManifest: Boolean = false,
     manifestFreshAtMs: Long? = null,
-  ): Files {
+  ): Files? {
     val metadata = openForWrite(
       applicationName = applicationName,
       sha256 = sha256,
       nowEpochMs = nowEpochMs,
       isManifest = isManifest,
       manifestFreshAtMs = manifestFreshAtMs,
-    )
+    ) ?: return null
     write(metadata, content, nowEpochMs)
     return metadata
   }
@@ -136,7 +140,7 @@ class ZiplineCache private constructor(
     nowEpochMs: Long,
     download: suspend () -> ByteString,
   ): ByteString {
-    if (hasWriteFailures) return download()
+    if (hasWriteFailures || closed) return download()
 
     // Loop so that a waiter whose owner failed can take the download over itself. Each pass either
     // returns cached content, becomes the owner, or awaits an owner, so a caller makes at most one
@@ -226,7 +230,7 @@ class ZiplineCache private constructor(
     content: ByteString,
     putFreshAtMs: Long,
     nowEpochMs: Long,
-  ): Files {
+  ): Files? {
     val sha256 = content.sha256()
     val metadata = getOrNull(sha256)
     return metadata ?: write(
@@ -243,6 +247,7 @@ class ZiplineCache private constructor(
     sha256: ByteString,
     nowEpochMs: Long,
   ): ByteString? {
+    if (closed) return null
     val metadata = database.filesQueries.get(sha256.hex()).executeAsOneOrNull() ?: return null
     return read(metadata, nowEpochMs)
   }
@@ -283,13 +288,14 @@ class ZiplineCache private constructor(
   }
 
   internal fun unpin(applicationName: String, sha256: ByteString) {
+    if (closed) return
     val fileId = database.filesQueries.get(sha256.hex()).executeAsOneOrNull()?.id ?: return
     database.pinsQueries.delete_pin(applicationName, fileId)
   }
 
   /** Returns null if there is no pinned manifest. */
   internal fun getPinnedManifest(applicationName: String, nowEpochMs: Long): LoadedManifest? {
-    if (hasWriteFailures) return null // This cache is broken.
+    if (hasWriteFailures || closed) return null // This cache is broken.
 
     try {
       val manifestFile = database.filesQueries
@@ -310,7 +316,7 @@ class ZiplineCache private constructor(
     loadedManifest: LoadedManifest,
     nowEpochMs: Long,
   ) {
-    if (hasWriteFailures) return // This cache is broken.
+    if (hasWriteFailures || closed) return // This cache is broken.
 
     try {
       val manifestBytes = loadedManifest.manifestBytes
@@ -319,7 +325,7 @@ class ZiplineCache private constructor(
         content = manifestBytes,
         putFreshAtMs = loadedManifest.freshAtEpochMs,
         nowEpochMs = nowEpochMs,
-      )
+      ) ?: return
 
       database.transaction {
         database.pinsQueries.delete_application_pins(applicationName)
@@ -349,7 +355,7 @@ class ZiplineCache private constructor(
     loadedManifest: LoadedManifest,
     nowEpochMs: Long,
   ) {
-    if (hasWriteFailures) return // This cache is broken.
+    if (hasWriteFailures || closed) return // This cache is broken.
 
     try {
       val unpinManifestBytes = loadedManifest.manifestBytes
@@ -398,7 +404,8 @@ class ZiplineCache private constructor(
     nowEpochMs: Long,
     isManifest: Boolean,
     manifestFreshAtMs: Long? = null,
-  ): Files {
+  ): Files? {
+    if (closed) return null
     val manifestForApplicationName = if (isManifest) {
       applicationName
     } else {
@@ -449,6 +456,7 @@ class ZiplineCache private constructor(
     fileSizeBytes: Long,
     nowEpochMs: Long,
   ) {
+    if (closed) return
     database.transaction {
       // Go from DIRTY to READY.
       require(getOrNull(metadata.id)?.file_state == FileState.DIRTY) {
@@ -510,6 +518,7 @@ class ZiplineCache private constructor(
    * have opened them.
    */
   internal fun prune(maxSizeInBytes: Long = this.maxSizeInBytes) {
+    if (closed) return
     while (true) {
       val currentSize = database.filesQueries.selectCacheSumBytes().executeAsOne().SUM ?: 0L
       if (currentSize <= maxSizeInBytes) return
@@ -522,10 +531,16 @@ class ZiplineCache private constructor(
   }
 
   /** Returns the number of files in the cache DB. */
-  internal fun countFiles() = database.filesQueries.count().executeAsOne().toInt()
+  internal fun countFiles(): Int {
+    if (closed) return 0
+    return database.filesQueries.count().executeAsOne().toInt()
+  }
 
   /** Returns the number of pins in the cache DB. */
-  internal fun countPins() = database.pinsQueries.count().executeAsOne().toInt()
+  internal fun countPins(): Int {
+    if (closed) return 0
+    return database.pinsQueries.count().executeAsOne().toInt()
+  }
 
   private fun path(metadata: Files): Path = directory / "entry-${metadata.id}.bin"
 
@@ -537,7 +552,7 @@ class ZiplineCache private constructor(
     loadedManifest: LoadedManifest,
     nowEpochMs: Long,
   ) {
-    if (hasWriteFailures) return // This cache is broken.
+    if (hasWriteFailures || closed) return // This cache is broken.
 
     try {
       val freshAtMs = loadedManifest.freshAtEpochMs
@@ -546,7 +561,7 @@ class ZiplineCache private constructor(
         content = loadedManifest.manifestBytes,
         putFreshAtMs = freshAtMs,
         nowEpochMs = nowEpochMs,
-      )
+      ) ?: return
       database.filesQueries.updateFresh(
         id = manifestMetadata.id,
         fresh_at_epoch_ms = freshAtMs,
